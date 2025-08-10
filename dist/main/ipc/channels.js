@@ -1,9 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.IPC = void 0;
 /**
  * channels.ts
  * ---
  * IPC 채널명 상수
  */
-export const IPC = {
+exports.IPC = {
     CID: {
         OPEN: 'cid/open',
         CLOSE: 'cid/close',
@@ -13,4 +16,5 @@ export const IPC = {
         DEVICE_INFO: 'cid/deviceInfo',
         ON_EVENT: 'cid/onEvent',
     },
-} as const;
+};
+//# sourceMappingURL=channels.js.map

@@ -1,5 +1,3 @@
-/**
- * main.ts
- * ---
- * 엔트리 (환경로딩, app.ts 실행)
- */
+import 'dotenv/config';
+import { createApp } from './app';
+createApp();

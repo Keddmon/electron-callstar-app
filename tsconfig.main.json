@@ -4,11 +4,12 @@
         "module": "CommonJS",
         "rootDir": "src/main",
         "outDir": "dist/main",
-        "moduleResolution": "Node",
         "strict": true,
         "esModuleInterop": true,
+        "moduleResolution": "node",
         "resolveJsonModule": true,
         "sourceMap": true,
+        "noEmit": false,
         "types": ["node", "electron"]
     },
     "include": ["src/main/**/*"]
