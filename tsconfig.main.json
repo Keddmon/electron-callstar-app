@@ -2,14 +2,15 @@
     "compilerOptions": {
         "target": "ES2020",
         "module": "CommonJS",
-        "rootDir": "src/main",
         "outDir": "dist/main",
+        "rootDir": "src/main",
+        "lib": ["ES2020", "DOM"], // ✅ 추가
         "strict": true,
+        "skipLibCheck": true, // ✅ 추가(강력 추천)
+        "moduleResolution": "Node",
         "esModuleInterop": true,
-        "moduleResolution": "node",
         "resolveJsonModule": true,
         "sourceMap": true,
-        "noEmit": false,
         "types": ["node", "electron"]
     },
     "include": ["src/main/**/*"]

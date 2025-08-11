@@ -12,6 +12,6 @@ export const IPC = {
         FORCE_END: 'cid:forceEnd',
         DEVICE_INFO: 'cid:deviceInfo',
         ON_EVENT: 'cid:onEvent',
-        LIST_POTS: 'cid:listPorts',
+        LIST_PORTS: 'cid:listPorts',
     },
 } as const;

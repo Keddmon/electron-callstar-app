@@ -39,7 +39,7 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
     });
 
     // 포트 탐지 및 연결
-    ipcMain.handle(IPC.CID.LIST_POTS, async () => {
+    ipcMain.handle(IPC.CID.LIST_PORTS, async () => {
         try {
             return await adapter.listPorts();
         } catch (e: any) {
