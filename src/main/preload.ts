@@ -31,7 +31,7 @@ declare global {
             dial: (phone: string, channel?: string) => Promise<boolean>;
             forceEnd: (channel?: string) => Promise<boolean>;
             deviceInfo: (channel?: string) => Promise<boolean>;
-            onEvent: (handler: (evt: any) => void) => () => void; // unsubscribe
+            onEvent: (handler: (evt: any) => void) => () => void;
         };
     }
 }
