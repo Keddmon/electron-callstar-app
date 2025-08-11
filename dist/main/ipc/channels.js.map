@@ -1,1 +1,0 @@
-{"version":3,"file":"channels.js","sourceRoot":"","sources":["../../../src/main/ipc/channels.ts"],"names":[],"mappings":";;;AAAA;;;;GAIG;AACU,QAAA,GAAG,GAAG;IACf,GAAG,EAAE;QACD,IAAI,EAAE,UAAU;QAChB,KAAK,EAAE,WAAW;QAClB,MAAM,EAAE,YAAY;QACpB,IAAI,EAAE,UAAU;QAChB,SAAS,EAAE,cAAc;QACzB,WAAW,EAAE,gBAAgB;QAC7B,QAAQ,EAAE,aAAa;KAC1B;CACK,CAAC"}

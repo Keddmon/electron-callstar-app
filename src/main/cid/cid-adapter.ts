@@ -10,6 +10,18 @@ import { FrameBuffer } from './frame-buffer';
 import { makePacket, parsePacket } from './packet-parser';
 import type { CidAdapterStatus, CidHighLevelEvent, ParsedPacket } from './types';
 
+type CidPortInfo = {
+    path: string;
+    manaufacturer?: string;
+    serialNumber?: string;
+    pnpId?: string;
+    locationId?: string;
+    vendorId?: string;
+    productId?: string;
+    friendlyName?: string;
+    isLikelyCid: boolean;
+};
+
 type OpenOptions = { path: string, baudRate?: number };
 
 export class CidAdapter extends EventEmitter {
@@ -138,5 +150,37 @@ export class CidAdapter extends EventEmitter {
         }
         if (evt) this.emit('event', evt);
         this.emit('raw', { type: 'raw', packet: p } as CidHighLevelEvent);
+    }
+
+    /**
+     * 포트 탐지
+     * ---
+     */
+    async listPorts(): Promise<CidPortInfo[]> {
+        const ports = await SerialPort.list();
+
+        return ports.map((p) => {
+            const vendorId = (p.vendorId || '').toLowerCase();
+            const productId = (p.productId || '').toLowerCase();
+            // const text = `${p.manufacturer ?? ''} ${p.friendlyName ?? ''} ${p.pnpId ?? ''}`.toLowerCase();
+            const text = `${p.manufacturer ?? ''} ${p.pnpId ?? ''}`.toLowerCase();
+
+            const isCp210x =
+                vendorId === '10c4' ||
+                text.includes('cp210x') ||
+                text.includes('silicon labs');
+
+            return {
+                path: p.path,
+                manaufacturer: p.manufacturer,
+                serialNumber: p.serialNumber,
+                pnpId: p.pnpId,
+                locationId: p.locationId as any,
+                vendorId: p.vendorId,
+                productId: p.productId,
+                friendlyName: (p as any).friendlyName,
+                isLikelyCid: isCp210x,
+            };
+        }).sort((a, b) => Number(b.isLikelyCid) - Number(a.isLikelyCid));
     }
 }

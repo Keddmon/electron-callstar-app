@@ -37,4 +37,13 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
     adapter.on('status', (status) => {
         win.webContents.send(IPC.CID.ON_EVENT, { type: 'status', status });
     });
+
+    // 포트 탐지 및 연결
+    ipcMain.handle(IPC.CID.LIST_POTS, async () => {
+        try {
+            return await adapter.listPorts();
+        } catch (e: any) {
+            return { error: e?.message ?? String(e) };
+        }
+    });
 }
