@@ -1,13 +1,12 @@
 // src/main/app.ts
 import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import { CidAdapter } from './cid/cid-adapter';
 import { registerCidIpc } from './ipc/register-cid.ipc';
-import * as fs from 'fs';
 
-const isDev = !!process.env.ELECTRON_DEV_SERVER_URL;
-
-let win: BrowserWindow | null = null;
+const DEV_URL = process.env.ELECTRON_DEV_SERVER_URL;
+const START_URL = process.env.START_URL || '';
 
 export async function createApp() {
     await app.whenReady();
@@ -30,6 +29,9 @@ export async function createApp() {
     const adapter = new CidAdapter();
     registerCidIpc(adapter, win);
 
+    console.log('[app] DEV_URL =', DEV_URL);
+    console.log('[app] START_URL =', START_URL);
+
     // 로딩 상태 로깅
     win.webContents.on('did-finish-load', () => {
         console.log('[electron] did-finish-load');
@@ -39,12 +41,22 @@ export async function createApp() {
         console.error('[electron] did-fail-load:', { code, desc, url });
     });
 
-    // 개발 모드: CRA dev server
-    if (process.env.ELECTRON_DEV_SERVER_URL) {
-        await win.loadURL(process.env.ELECTRON_DEV_SERVER_URL);
+    win.webContents.on('did-navigate', (_e, url) => console.log('[app] did-navigate:', url));
+    win.webContents.on('did-navigate-in-page', (_e, url) => console.log('[app] in-page:', url));
+
+    // 개발 : Vite dev 서버 + 시작경로
+    if (DEV_URL) {
+        await win.loadURL(`${DEV_URL}${START_URL}`);
         win.webContents.openDevTools({ mode: 'detach' });
     } else {
-        await win.loadFile(path.resolve(__dirname, '../renderer/index.html'));
+        // 배포: 정적 파일 로드
+        const indexHtml = path.resolve(__dirname, '../renderer/index.html');
+
+        if (START_URL.startsWith('#')) {
+            await win.loadFile(indexHtml, { hash: START_URL.replace(/^#/, '') });
+        } else {
+            await win.loadFile(indexHtml);
+        }
     }
 
     // ready-to-show는 보조로만

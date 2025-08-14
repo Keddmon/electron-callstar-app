@@ -4,7 +4,7 @@
     "main": "dist/main/main.js",
     "private": true,
     "scripts": {
-        "dev": "concurrently -k \"tsc -p tsconfig.main.json -w\" \"cross-env NODE_ENV=development ELECTRON_DEV_SERVER_URL=http://localhost:3000 wait-on tcp:3000 file:dist/main/preload.js && electron .\"",
+        "dev": "concurrently -k \"tsc -p tsconfig.main.json -w\" \"cross-env NODE_ENV=development ELECTRON_DEV_SERVER_URL=http://localhost:5173 START_URL=#/crm/telephone/new wait-on tcp:5173 file:dist/main/preload.js && electron .\"",
         "build": "rimraf dist && tsc -p tsconfig.main.json",
         "start": "electron .",
         "pack": "npm run build && electron-builder"
