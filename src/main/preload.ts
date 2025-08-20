@@ -19,6 +19,8 @@ export const IPC = {
         DEVICE_INFO: 'cid:deviceInfo',
         ON_EVENT: 'cid:onEvent',
         LIST_PORTS: 'cid:listPorts',
+
+        INCOMING: 'cid:incoming'
     },
 } as const;
 
@@ -38,6 +40,8 @@ try {
             ipcRenderer.on(IPC.CID.ON_EVENT, wrapped);
             return () => ipcRenderer.removeListener(IPC.CID.ON_EVENT, wrapped);
         },
+
+        incoming: (phoneNumber: string, channel = '1') => ipcRenderer.invoke(IPC.CID.INCOMING, { phoneNumber, channel }),
     });
     console.log('[preload] exposed window.cid');
 } catch (e) {

@@ -80,13 +80,22 @@ export class CidAdapter extends EventEmitter {
         this.writeRaw(makePacket(channel, 'P', ''));
     }
 
-    dial(phoneNumber: string, channel = '1') {
+    dial(phoneNumber: string = '1234567890', channel = '1') {
         // 주의: 일부 PABX 환경에서는 9, prefix 필요. 필요시 payload 앞에 붙이도록 확장
         this.writeRaw(makePacket(channel, 'O', phoneNumber));
     }
 
     forceEnd(channel = '1') {
         this.writeRaw(makePacket(channel, 'F', ''));
+    }
+    
+    // 2025 08 20 월요일: 테스트 명령어 추가
+    incoming(phoneNumber: string = '1234567890', channel = '1') {
+        this.writeRaw(makePacket(channel, 'I', phoneNumber));
+    }
+
+    dialComplete(channel = '1') {
+        this.writeRaw(makePacket(channel, 'K'))
     }
 
     /**
@@ -129,10 +138,10 @@ export class CidAdapter extends EventEmitter {
                 break;
 
             case 'O':
-                evt = { type: 'dial-out', channel: p.channel };
+                evt = { type: 'dial-out', channel: p.channel, phoneNumber: p.payload };
                 break;
             case 'K':
-                evt = { type: 'dial-complete', channel: p.channel };
+                evt = { type: 'dial-complete', channel: p.channel, phoneNumber: p.payload };
                 break;
             case 'F':
                 evt = { type: 'force-end', channel: p.channel };

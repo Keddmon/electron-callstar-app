@@ -9,7 +9,7 @@ export const ETX = '\x03';
 
 export const FRAME_BODY_LEN = 21;
 
-export type Opcode =
+export type Opcode = 
     | 'P' // 장비 정보 요청/응답
 
     | 'I' // incoming
@@ -24,7 +24,7 @@ export type Opcode =
 
 export const MASK_PAYLOAD = {
     PRIVATE: 'P',   // 발신번호표시 금지
-    PUBLIC: 'C',   // 공중전화
+    PUBLIC: 'C',    // 공중전화
     UNKNOWN: 'O',   // 발신번호 수집불가
 } as const;
 

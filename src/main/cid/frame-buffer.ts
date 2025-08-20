@@ -33,12 +33,14 @@ export class FrameBuffer {
                 break;
             }
 
+            console.log(`[cid][frame-buffer] buffer: `, this.buffer);
+
             const frame = this.buffer.slice(start, end + 1);
             frames.push(frame);
             this.buffer = this.buffer.slice(end + 1);
         }
 
-        console.log(`[cid][frame-buffer] ${frames}`);
+        console.log(`[cid][frame-buffer] frames: ${frames}`);
 
         return frames;
     }

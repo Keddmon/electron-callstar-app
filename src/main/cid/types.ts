@@ -12,8 +12,8 @@ export type CidHighLevelEvent =
     | { type: 'incoming'; channel: string; phoneNumber: string }
     | { type: 'masked'; channel: string; reason: 'PRIVATE' | 'PUBLIC' | 'UNKNOWN' }
 
-    | { type: 'dial-out'; channel: string; }
-    | { type: 'dial-complete'; channel: string; }
+    | { type: 'dial-out'; channel: string; phoneNumber: string }
+    | { type: 'dial-complete'; channel: string; phoneNumber: string }
     | { type: 'force-end'; channel: string; }
 
     | { type: 'on-hook', channel: string; }
