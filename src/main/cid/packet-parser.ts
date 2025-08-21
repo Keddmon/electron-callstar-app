@@ -3,8 +3,8 @@
  * ---
  * 문자열 -> { channel, opcode, payload }
  */
-import { STX, ETX, FRAME_BODY_LEN } from './opcode-map';
-import type { ParsedPacket } from './types';
+import { STX, ETX, FRAME_BODY_LEN } from './cid.constants';
+import type { ParsedPacket } from './cid.types';
 
 /**
  * CID 패킷 만들기

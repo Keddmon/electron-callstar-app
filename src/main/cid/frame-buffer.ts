@@ -3,7 +3,7 @@
  * ---
  * STX/ETX 프레이밍 (22바이트, space pad trim)
  */
-import { STX, ETX } from './opcode-map';
+import { STX, ETX } from './cid.constants';
 
 /**
  * 시리얼 스트림에서 오는 chunk를 이어붙여

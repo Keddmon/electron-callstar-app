@@ -1,10 +1,18 @@
-// src/main/app.ts
+/**
+ * 애플리케이션 설정
+ * --
+ */
 import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { CidAdapter } from './cid/cid-adapter';
+
+/** 어댑터 */
+import { CidAdapter } from './cid/cid.adapter';
+
+/** IPC */
 import { registerCidIpc } from './ipc/register-cid.ipc';
 
+/** Constant */
 const DEV_URL = process.env.ELECTRON_DEV_SERVER_URL;
 const START_URL = process.env.START_URL || '';
 
@@ -13,7 +21,6 @@ export async function createApp() {
 
     const preloadPath = path.resolve(__dirname, 'preload.js');
     console.log('[main] preloadPath =', preloadPath, 'exists?', fs.existsSync(preloadPath));
-
 
     const win = new BrowserWindow({
         width: 1200,
@@ -41,6 +48,7 @@ export async function createApp() {
         console.error('[electron] did-fail-load:', { code, desc, url });
     });
 
+    // 페이지 이동 추적
     win.webContents.on('did-navigate', (_e, url) => console.log('[app] did-navigate:', url));
     win.webContents.on('did-navigate-in-page', (_e, url) => console.log('[app] in-page:', url));
 

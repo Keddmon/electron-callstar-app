@@ -1,7 +1,6 @@
 /**
- * preload.ts
- * ---
- * contextIsolation + 안전한 IPC 브리지
+ * 메인 프로세스 + 렌더러 프로세스 연결
+ * --
  */
 import { contextBridge, ipcRenderer } from 'electron';
 
@@ -19,8 +18,6 @@ export const IPC = {
         DEVICE_INFO: 'cid:deviceInfo',
         ON_EVENT: 'cid:onEvent',
         LIST_PORTS: 'cid:listPorts',
-
-        INCOMING: 'cid:incoming'
     },
 } as const;
 
@@ -35,13 +32,16 @@ try {
         forceEnd: (channel = '1') => ipcRenderer.invoke(IPC.CID.FORCE_END, { channel }),
         deviceInfo: (channel = '1') => ipcRenderer.invoke(IPC.CID.DEVICE_INFO, { channel }),
         listPorts: () => ipcRenderer.invoke(IPC.CID.LIST_PORTS),
+
         onEvent: (handler: (evt: any) => void) => {
+            if (typeof handler !== 'function') {
+                console.error('[preload] onEvent handler must be a function.');
+                return () => {};
+            }
             const wrapped = (_e: any, payload: any) => handler(payload);
             ipcRenderer.on(IPC.CID.ON_EVENT, wrapped);
             return () => ipcRenderer.removeListener(IPC.CID.ON_EVENT, wrapped);
         },
-
-        incoming: (phoneNumber: string, channel = '1') => ipcRenderer.invoke(IPC.CID.INCOMING, { phoneNumber, channel }),
     });
     console.log('[preload] exposed window.cid');
 } catch (e) {

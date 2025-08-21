@@ -5,10 +5,10 @@
  */
 import EventEmitter from 'events';
 import { SerialPort } from 'serialport';
-import { BAUD_RATE, MASK_PAYLOAD } from './opcode-map';
+import { BAUD_RATE, MASK_PAYLOAD } from './cid.constants';
 import { FrameBuffer } from './frame-buffer';
 import { makePacket, parsePacket } from './packet-parser';
-import type { CidAdapterStatus, CidHighLevelEvent, ParsedPacket } from './types';
+import type { CidAdapterStatus, CidHighLevelEvent, ParsedPacket } from './cid.types';
 
 type CidPortInfo = {
     path: string;

@@ -1,5 +1,5 @@
 import { BrowserWindow, IpcMain, ipcMain } from 'electron';
-import { CidAdapter } from '../cid/cid-adapter';
+import { CidAdapter } from '../cid/cid.adapter';
 import { IPC } from './channels';
 
 function mapToFrontendEvent(evt: any) {

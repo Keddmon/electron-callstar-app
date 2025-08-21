@@ -9,7 +9,7 @@ export const ETX = '\x03';
 
 export const FRAME_BODY_LEN = 21;
 
-export type Opcode = 
+export type Opcode =
     | 'P' // 장비 정보 요청/응답
 
     | 'I' // incoming
