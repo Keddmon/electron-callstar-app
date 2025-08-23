@@ -116,11 +116,11 @@ export class CidAdapter extends EventEmitter {
         this.writeRaw(makePacket(channel, OPCODE.DEVICE_INFO, ''));
     }
 
-    incoming(channel = '1', phoneNumber = '01012345678') {
+    incoming(channel = '1', phoneNumber: string) {
         this.writeRaw(makePacket(channel, OPCODE.INCOMING, phoneNumber));
     }
 
-    dialOut(channel = '1', phoneNumber = '01012345678') {
+    dialOut(channel = '1', phoneNumber: string) {
         this.writeRaw(makePacket(channel, OPCODE.DIAL_OUT, phoneNumber));
     }
 
