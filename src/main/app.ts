@@ -5,6 +5,7 @@
 import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import logger from './logs/logger';
 
 /** 어댑터 */
 import { CidAdapter } from './cid/cid.adapter';
@@ -17,11 +18,13 @@ const DEV_URL = process.env.ELECTRON_DEV_SERVER_URL;
 const START_URL = process.env.START_URL || '';
 
 export async function createApp() {
+    logger.info('Create App: Application starting...');
     await app.whenReady();
 
     const preloadPath = path.resolve(__dirname, 'preload.js');
     console.log('[main] preloadPath =', preloadPath, 'exists?', fs.existsSync(preloadPath));
 
+    // 프로그램 해상도 및 설정
     const win = new BrowserWindow({
         width: 1200,
         height: 800,
@@ -39,7 +42,7 @@ export async function createApp() {
     console.log('[app] DEV_URL =', DEV_URL);
     console.log('[app] START_URL =', START_URL);
 
-    // 로딩 상태 로깅
+    // 로딩 상태 확인
     win.webContents.on('did-finish-load', () => {
         console.log('[electron] did-finish-load');
         if (!win.isVisible()) win.show();
@@ -70,11 +73,14 @@ export async function createApp() {
     // ready-to-show는 보조로만
     win.once('ready-to-show', () => win?.show());
 
+    // 프로그램 실행
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createApp();
     });
 
+    // 프로그램 종료
     app.on('window-all-closed', () => {
+        logger.info('All windows closed, quitting application.');
         if (process.platform !== 'darwin') app.quit();
     });
 }

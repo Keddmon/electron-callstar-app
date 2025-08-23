@@ -1,7 +1,6 @@
 /**
- * frame-buffer.ts
- * ---
  * STX/ETX 프레이밍 (22바이트, space pad trim)
+ * --
  */
 import { STX, ETX } from './cid.constants';
 
@@ -20,7 +19,7 @@ export class FrameBuffer {
     drainFrames(): string[] {
         const frames: string[] = [];
 
-        for (; ;) {
+        for (;;) {
             const start = this.buffer.indexOf(STX);
             const end = this.buffer.indexOf(ETX, start + 1);
 
