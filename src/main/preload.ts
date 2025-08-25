@@ -91,6 +91,12 @@ try {
         dialOut: (phoneNumber: string, channel = '1') => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { phoneNumber, channel }),
         forceEnd: (channel = '1') => ipcRenderer.invoke(IPC.CID.FORCE_END, { channel }),
 
+        /** MOCK */
+        incoming: (phoneNumber: string, channel = '1') => ipcRenderer.invoke(IPC.CID.INCOMING, { phoneNumber, channel }),
+        dialComplete: (channel = '1') => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE, { channel }),
+        onHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.ON_HOOK, { channel }),
+        offHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.OFF_HOOK, { channel }),
+
         onEvent: (handler: (evt: CidEvent) => void) => {
             if (typeof handler !== 'function') {
                 console.error('[preload] onEvent handler must be a function.');
@@ -118,6 +124,12 @@ declare global {
             deviceInfo: (channel?: string) => Promise<IpcResult<boolean>>;
             dialOut: (phoneNumber: string, channel?: string) => Promise<IpcResult<boolean>>;
             forceEnd: (channel?: string) => Promise<IpcResult<boolean>>;
+
+            /** MOCK */
+            incoming: (phoneNumber: string, channel?: string) => Promise<IpcResult<boolean>>;
+            dialComplete: (channel?: string) => Promise<IpcResult<boolean>>;
+            onHook: (channel?: string) => Promise<IpcResult<boolean>>;
+            offHook: (channel?: string) => Promise<IpcResult<boolean>>;
 
             onEvent: (handler: (evt: CidEvent) => void) => () => void;
         };
