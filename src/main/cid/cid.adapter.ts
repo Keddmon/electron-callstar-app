@@ -129,7 +129,9 @@ export class CidAdapter extends EventEmitter {
         console.log(`[Adapter] ${OPCODE.FORCED_END}`);
     }
 
-    /** Mock*/
+    /**
+     * MOCK
+     */
     // 장치 → PC
     incoming(channel = '1', phoneNumber: string) {
         const packet = makePacket(channel, OPCODE.INCOMING, phoneNumber);
@@ -157,6 +159,7 @@ export class CidAdapter extends EventEmitter {
         const chunk = Buffer.from(packet, 'utf-8');
         this.onData(chunk);
     }
+    /** !MOCK */
 
     /**
      * 수신 데이터 처리
