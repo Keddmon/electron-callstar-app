@@ -104,9 +104,9 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
     });
 
     // DIAL OUT
-    ipcm.handle(IPC.CID.DIAL_OUT, async (_e, args: { channel?: string, phoneNumber: string }): Promise<IpcResult<boolean>> => {
+    ipcm.handle(IPC.CID.DIAL_OUT, async (_e, args: { phoneNumber: string; channel?: string }): Promise<IpcResult<boolean>> => {
         try {
-            adapter.dialOut(args.channel ?? DEFAULT_CHANNEL, args.phoneNumber);
+            adapter.dialOut(args.phoneNumber, args.channel ?? DEFAULT_CHANNEL);
             return { data: true, error: null };
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.DIAL_OUT}: `, e);
@@ -127,9 +127,9 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
 
     /** MOCK */
     // INCOMING
-    ipcm.handle(IPC.CID.INCOMING, async (_e, args: { channel?: string, phoneNumber: string }): Promise<IpcResult<boolean>> => {
+    ipcm.handle(IPC.CID.INCOMING, async (_e, args: { phoneNumber: string, channel?: string }): Promise<IpcResult<boolean>> => {
         try {
-            adapter.incoming(args.channel ?? DEFAULT_CHANNEL, args.phoneNumber);
+            adapter.incoming(args.phoneNumber, args.channel ?? DEFAULT_CHANNEL);
             return { data: true, error: null };
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.INCOMING}`, e);
