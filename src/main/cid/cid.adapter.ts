@@ -111,33 +111,51 @@ export class CidAdapter extends EventEmitter {
         this.port.write(frame);
     }
 
-    /** Mock */
+    // PC ↔ 장치
     requestDeviceInfo(channel = '1') {
         this.writeRaw(makePacket(channel, OPCODE.DEVICE_INFO, ''));
+        console.log(`[Adapter] ${OPCODE.DEVICE_INFO}`);
     }
 
-    incoming(channel = '1', phoneNumber: string) {
-        this.writeRaw(makePacket(channel, OPCODE.INCOMING, phoneNumber));
-    }
-
+    // PC → 장치
     dialOut(channel = '1', phoneNumber: string) {
         this.writeRaw(makePacket(channel, OPCODE.DIAL_OUT, phoneNumber));
+        console.log(`[Adapter] ${OPCODE.DIAL_OUT}`);
     }
 
-    dialComplete(channel = '1') {
-        this.writeRaw(makePacket(channel, OPCODE.DIAL_COMPLETE));
-    }
-
+    // PC → 장치
     forceEnd(channel = '1') {
         this.writeRaw(makePacket(channel, OPCODE.FORCED_END));
+        console.log(`[Adapter] ${OPCODE.FORCED_END}`);
     }
 
-    onHook(channel = '1') {
-        this.writeRaw(makePacket(channel, OPCODE.ON_HOOK));
+    /** Mock*/
+    // 장치 → PC
+    incoming(channel = '1', phoneNumber: string) {
+        const packet = makePacket(channel, OPCODE.INCOMING, phoneNumber);
+        const chunk = Buffer.from(packet, 'utf-8');
+        this.onData(chunk);
     }
 
+    // 장치 → PC
+    dialComplete(channel = '1') {
+        const packet = makePacket(channel, OPCODE.DIAL_COMPLETE);
+        const chunk = Buffer.from(packet, 'utf-8');
+        this.onData(chunk);
+    }
+
+    // 장치 → PC
     offHook(channel = '1') {
-        this.writeRaw(makePacket(channel, OPCODE.OFF_HOOK));
+        const packet = makePacket(channel, OPCODE.OFF_HOOK);
+        const chunk = Buffer.from(packet, 'utf-8');
+        this.onData(chunk);
+    }
+
+    // 장치 → PC
+    onHook(channel = '1') {
+        const packet = makePacket(channel, OPCODE.ON_HOOK);
+        const chunk = Buffer.from(packet, 'utf-8');
+        this.onData(chunk);
     }
 
     /**

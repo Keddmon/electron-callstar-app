@@ -88,11 +88,11 @@ try {
         listPorts: () => ipcRenderer.invoke(IPC.CID.LIST_PORTS),
 
         deviceInfo: (channel = '1') => ipcRenderer.invoke(IPC.CID.DEVICE_INFO, { channel }),
-        dialOut: (phoneNumber: string, channel = '1') => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { phoneNumber, channel }),
+        dialOut: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { channel, phoneNumber }),
         forceEnd: (channel = '1') => ipcRenderer.invoke(IPC.CID.FORCE_END, { channel }),
 
         /** MOCK */
-        incoming: (phoneNumber: string, channel = '1') => ipcRenderer.invoke(IPC.CID.INCOMING, { phoneNumber, channel }),
+        incoming: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.INCOMING, { channel, phoneNumber }),
         dialComplete: (channel = '1') => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE, { channel }),
         onHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.ON_HOOK, { channel }),
         offHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.OFF_HOOK, { channel }),

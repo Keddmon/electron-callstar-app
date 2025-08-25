@@ -14,6 +14,11 @@ import logger from '../logs/logger';
 export function makePacket(channel: string, opcode: Opcode, payload = ''): string {
     let body = `${channel}${opcode}${payload}`;
 
+    console.log('[makePacket] channel: ', channel);
+    console.log('[makePacket] opcode: ', opcode);
+    console.log('[makePacket] payload: ', payload);
+    console.log('[makePacket] body: ', body);
+
     if (body.length > FRAME_BODY_LEN) {
         logger.warn(`[Packet] Payload for opcode '${opcode}' is too long. Truncating.`, {
             originalLength: body.length,
@@ -26,6 +31,8 @@ export function makePacket(channel: string, opcode: Opcode, payload = ''): strin
 
     const packet = `${STX}${body}${ETX}`;
     logger.debug(`[Packet] Made packet: ${packet}`);
+
+    console.log('[Packet] Packet: ', packet);
 
     return packet;
 }
@@ -59,6 +66,13 @@ export function parsePacket(raw: string): ParsedPacket | null {
     const opcode = body[1];
     const payload = body.slice(2).trim();
 
+    console.log('==============================');
+    console.log('[Packet] Raw: ', raw);
+    console.log('[Packet] Body: ', body);
+    console.log('[Packet] Channel: ', channel);
+    console.log('[Packet] Opcode: ', opcode);
+    console.log('[Packet] payload: ', payload);
+    console.log('==============================');
     logger.debug('[Packet] Parsed packet.', { channel, opcode, payload });
 
     return {
