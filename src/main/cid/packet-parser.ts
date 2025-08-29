@@ -1,5 +1,5 @@
 /**
- * 문자열 -> { channel, opcode, payload }
+ * 바이트 프레임 → ParsedPacket 변환
  * --
  */
 import { STX, ETX, FRAME_BODY_LEN, Opcode } from './cid.constants';

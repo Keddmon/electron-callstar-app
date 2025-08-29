@@ -1,5 +1,5 @@
 /**
- * 메인 프로세스 + 렌더러 프로세스 연결
+ * renderer에 노출되는 IPC 브리지(window.cid)
  * --
  */
 import { contextBridge, ipcRenderer } from 'electron';

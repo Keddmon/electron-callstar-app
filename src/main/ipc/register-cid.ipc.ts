@@ -1,16 +1,15 @@
+/**
+ * 메인프로세스 IPC 핸들러 묶음
+ * --
+ */
 import { BrowserWindow, IpcMain, ipcMain } from 'electron';
 import { CidAdapter } from '../cid/cid.adapter';
 import { IPC } from './channels';
-
 import { IpcResult } from '../types/ipc';
 import logger from '../logs/logger';
 import { CidEvent, CidPortInfo } from '../types/cid';
 import { CidAdapterStatus } from '../interfaces/cid.interface';
 
-/**
- * CID 어댑터 이벤트 → Frontend 이벤트 변환 (편의)
- * --
- */
 function mapToFrontendEvent(evt: CidEvent) {
     switch (evt?.type) {
         case 'device-info':

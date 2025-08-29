@@ -1,5 +1,5 @@
 /**
- * 애플리케이션 설정
+ * BrowserWindow 생성/URL 로드/IPC 등록
  * --
  */
 import { app, BrowserWindow } from 'electron';

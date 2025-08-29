@@ -1,7 +1,6 @@
 /**
- * cid-adapter.ts
+ * SerialPort 연동/프레임 파싱/고수준 이벤트 발생
  * --
- * 포트 오픈/닫기, 자동탐지, 재연결, 이벤트 바인딩
  */
 import EventEmitter from 'events';
 import { SerialPort } from 'serialport';

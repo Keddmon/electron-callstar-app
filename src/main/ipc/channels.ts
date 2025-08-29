@@ -1,5 +1,5 @@
 /**
- * IPC 채널명 상수
+ * IPC 채널 상수 정의
  * --
  */
 export const IPC = {

@@ -1,5 +1,5 @@
 /**
- * CID 기기 프로토콜 정의
+ * CID 기기 프로토콜 상수 정의
  * --
  */
 export const STX = '\x02';              // 02H: 시작 (1byte)

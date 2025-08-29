@@ -1,5 +1,5 @@
 /**
- * 메인 프로세스 진입점
+ * 엔트리: createApp() 실행
  * --
  */
 import 'dotenv/config';

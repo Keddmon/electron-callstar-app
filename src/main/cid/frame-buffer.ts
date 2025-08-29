@@ -1,5 +1,5 @@
 /**
- * STX/ETX 프레이밍 (22바이트, space pad trim)
+ * 스트림 → 프레임 단위로 분리
  * --
  */
 import { STX, ETX } from './cid.constants';
