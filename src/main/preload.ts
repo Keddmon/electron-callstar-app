@@ -91,7 +91,6 @@ try {
         dialOut: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { channel, phoneNumber }),
         forceEnd: (channel = '1') => ipcRenderer.invoke(IPC.CID.FORCE_END, { channel }),
 
-        /** MOCK */
         incoming: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.INCOMING, { channel, phoneNumber }),
         dialComplete: (channel = '1') => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE, { channel }),
         onHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.ON_HOOK, { channel }),
@@ -125,7 +124,6 @@ declare global {
             dialOut: (phoneNumber: string, channel?: string) => Promise<IpcResult<boolean>>;
             forceEnd: (channel?: string) => Promise<IpcResult<boolean>>;
 
-            /** MOCK */
             incoming: (phoneNumber: string, channel?: string) => Promise<IpcResult<boolean>>;
             dialComplete: (channel?: string) => Promise<IpcResult<boolean>>;
             onHook: (channel?: string) => Promise<IpcResult<boolean>>;

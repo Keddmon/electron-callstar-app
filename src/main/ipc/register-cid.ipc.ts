@@ -124,8 +124,7 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
             return { data: null, error: e.message || String(e) };
         }
     });
-
-    /** MOCK */
+    
     // INCOMING
     ipcm.handle(IPC.CID.INCOMING, async (_e, args: { phoneNumber: string, channel?: string }): Promise<IpcResult<boolean>> => {
         try {
