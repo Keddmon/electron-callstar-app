@@ -47,6 +47,7 @@ function mapToFrontendEvent(evt: CidEvent) {
 export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: IpcMain = ipcMain) {
     const DEFAULT_CHANNEL = '1';
 
+    // CID OPEN
     ipcm.handle(IPC.CID.OPEN, async (_e, args: { path: string; baudRate?: number }): Promise<IpcResult<CidAdapterStatus>> => {
         try {
             await adapter.open(args);
@@ -57,6 +58,7 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
         }
     });
 
+    // CID CLOSE
     ipcm.handle(IPC.CID.CLOSE, async (): Promise<IpcResult<CidAdapterStatus>> => {
         try {
             await adapter.close();
@@ -67,6 +69,7 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
         }
     });
 
+    // CID STATUS
     ipcm.handle(IPC.CID.STATUS, async (): Promise<IpcResult<CidAdapterStatus>> => {
         try {
             const status = adapter.getStatus();
@@ -77,6 +80,7 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
         }
     });
 
+    // LIST PORTS
     ipcm.handle(IPC.CID.LIST_PORTS, async (): Promise<IpcResult<CidPortInfo[]>> => {
         try {
             const ports = await adapter.listPorts();
@@ -87,6 +91,7 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
         }
     });
 
+    // CID DEVICE INFO
     ipcm.handle(IPC.CID.DEVICE_INFO, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
         try {
             adapter.requestDeviceInfo(args?.channel ?? DEFAULT_CHANNEL);
@@ -97,6 +102,7 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
         }
     });
 
+    // DIAL OUT
     ipcm.handle(IPC.CID.DIAL_OUT, async (_e, args: { phoneNumber: string; channel?: string }): Promise<IpcResult<boolean>> => {
         try {
             adapter.dialOut(args.phoneNumber, args.channel ?? DEFAULT_CHANNEL);
@@ -107,12 +113,57 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
         }
     });
 
+    // FORCE END
     ipcm.handle(IPC.CID.FORCE_END, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
         try {
             adapter.forceEnd(args?.channel ?? DEFAULT_CHANNEL);
             return { data: true, error: null };
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.FORCE_END} `, e);
+            return { data: null, error: e.message || String(e) };
+        }
+    });
+    
+    // INCOMING
+    ipcm.handle(IPC.CID.INCOMING, async (_e, args: { phoneNumber: string, channel?: string }): Promise<IpcResult<boolean>> => {
+        try {
+            adapter.incoming(args.phoneNumber, args.channel ?? DEFAULT_CHANNEL);
+            return { data: true, error: null };
+        } catch (e: any) {
+            logger.error(`[IPC Error] ${IPC.CID.INCOMING}`, e);
+            return { data: null, error: e.message || String(e) };
+        }
+    });
+
+    // DIAL COMPLETE
+    ipcm.handle(IPC.CID.DIAL_COMPLETE, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+        try {
+            adapter.dialComplete(args?.channel ?? DEFAULT_CHANNEL);
+            return { data: true, error: null };
+        } catch (e: any) {
+            logger.error(`[IPC Error] ${IPC.CID.DIAL_COMPLETE}`, e);
+            return { data: null, error: e.message || String(e) };
+        }
+    });
+
+    // OFF HOOK
+    ipcm.handle(IPC.CID.OFF_HOOK, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+        try {
+            adapter.offHook(args?.channel ?? DEFAULT_CHANNEL);
+            return { data: true, error: null };
+        } catch (e: any) {
+            logger.error(`[IPC Error] ${IPC.CID.OFF_HOOK}`, e);
+            return { data: null, error: e.message || String(e) };
+        }
+    });
+
+    // ON HOOK
+    ipcm.handle(IPC.CID.ON_HOOK, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+        try {
+            adapter.onHook(args?.channel ?? DEFAULT_CHANNEL);
+            return { data: true, error: null };
+        } catch (e: any) {
+            logger.error(`[IPC Error] ${IPC.CID.ON_HOOK}`, e);
             return { data: null, error: e.message || String(e) };
         }
     });

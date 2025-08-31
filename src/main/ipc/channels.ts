@@ -20,8 +20,8 @@ export const IPC = {
         DIAL_COMPLETE: 'cid:dialComplete',
         FORCE_END: 'cid:forceEnd',
 
-        ON_HOOK: 'cid:onHook',
         OFF_HOOK: 'cid:offHook',
+        ON_HOOK: 'cid:onHook',
         
         EVENT: 'cid:event',
     },
