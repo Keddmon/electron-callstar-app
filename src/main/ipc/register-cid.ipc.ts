@@ -44,7 +44,7 @@ function mapToFrontendEvent(evt: CidEvent) {
  * - ipcm.handle: 양방향 통신
  * - adapter.on:  단방향 통신
  */
-export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: IpcMain = ipcMain) {
+export function registerCidIpc(adapter: CidAdapter, getWindow: () => BrowserWindow | null, ipcm: IpcMain = ipcMain) {
     const DEFAULT_CHANNEL = '1';
 
     // CID OPEN
@@ -123,7 +123,7 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
             return { data: null, error: e.message || String(e) };
         }
     });
-    
+
     // INCOMING
     ipcm.handle(IPC.CID.INCOMING, async (_e, args: { phoneNumber: string, channel?: string }): Promise<IpcResult<boolean>> => {
         try {
@@ -169,11 +169,17 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
     });
 
     adapter.on('event', (payload: CidEvent) => {
-        const mapped = mapToFrontendEvent(payload);
-        win.webContents.send(IPC.CID.EVENT, mapped);
+        const win = getWindow();
+        if (win) {
+            const mapped = mapToFrontendEvent(payload);
+            win.webContents.send(IPC.CID.EVENT, mapped);
+        }
     });
 
     adapter.on('status', (status: CidAdapterStatus) => {
-        win.webContents.send(IPC.CID.EVENT, { type: 'status', status });
+        const win = getWindow();
+        if (win) {
+            win.webContents.send(IPC.CID.EVENT, { type: 'status', status });
+        }
     });
 }
