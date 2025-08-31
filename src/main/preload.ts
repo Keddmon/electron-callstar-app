@@ -4,30 +4,10 @@
  */
 import { contextBridge, ipcRenderer } from 'electron';
 
-// // import { IPC } from './ipc/channels';
-// // import { IpcResult } from './types/ipc';
-// // import { CidEvent, CidPortInfo } from './types/cid';
-// import { CidAdapterStatus } from './interfaces/cid.interface';
-
 /**
  * preload.ts: TypeScript 컴파일러가 변환 과정에서 import를 제대로 읽지 못함
  * → preload.ts안에서 channel, type, interface 직접 선언
- */
-interface ParsedPacket {
-    channel: string;
-    opcode: string;
-    payload: string;
-    raw: string;
-    receivedAt: number;
-};
-
-interface CidAdapterStatus {
-    isOpen: boolean;
-    portPath?: string;
-    lastEventAt?: number;
-    lastPacket?: ParsedPacket | null;
-};
-
+*/
 const IPC = {
     CID: {
         OPEN: 'cid:open',
@@ -42,6 +22,17 @@ const IPC = {
         ON_HOOK: 'cid:onHook',
         OFF_HOOK: 'cid:offHook',
         EVENT: 'cid:event',
+        SET_AR: 'cid:autoReconnect:set',
+        GET_AR: 'cid:autoReconnect:get',
+    },
+    SETTINGS: {
+        GET: 'settings:get',
+        SET: 'settings:set',
+        PATCH: 'settings:patch',
+    },
+    NET: {
+        LIST_INTERFACES: 'net:listInterfaces',
+        ARP_TABLE: 'net:arpTable',
     },
 } as const;
 
@@ -63,19 +54,34 @@ type CidPortInfo = {
 };
 
 type CidEvent =
-    | { type: 'device-info'; channel: string; payload: string }
+| { type: 'device-info'; channel: string; payload: string }
 
-    | { type: 'incoming'; channel: string; phoneNumber: string }
-    | { type: 'masked'; channel: string; reason: 'PRIVATE' | 'PUBLIC' | 'UNKNOWN' }
+| { type: 'incoming'; channel: string; phoneNumber: string }
+| { type: 'masked'; channel: string; reason: 'PRIVATE' | 'PUBLIC' | 'UNKNOWN' }
 
-    | { type: 'dial-out'; channel: string; phoneNumber: string }
-    | { type: 'dial-complete'; channel: string; }
-    | { type: 'force-end'; channel: string; }
+| { type: 'dial-out'; channel: string; phoneNumber: string }
+| { type: 'dial-complete'; channel: string; }
+| { type: 'force-end'; channel: string; }
 
-    | { type: 'on-hook', channel: string; }
-    | { type: 'off-hook', channel: string; }
+| { type: 'on-hook', channel: string; }
+| { type: 'off-hook', channel: string; }
 
-    | { type: 'raw', packet: ParsedPacket };
+| { type: 'raw', packet: ParsedPacket };
+
+interface ParsedPacket {
+    channel: string;
+    opcode: string;
+    payload: string;
+    raw: string;
+    receivedAt: number;
+};
+
+interface CidAdapterStatus {
+    isOpen: boolean;
+    portPath?: string;
+    lastEventAt?: number;
+    lastPacket?: ParsedPacket | null;
+};
 
 console.log('[preload] running. href=', location.href, 'electron=', process.versions.electron);
 
@@ -90,12 +96,14 @@ try {
         deviceInfo: (channel = '1') => ipcRenderer.invoke(IPC.CID.DEVICE_INFO, { channel }),
         dialOut: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { channel, phoneNumber }),
         forceEnd: (channel = '1') => ipcRenderer.invoke(IPC.CID.FORCE_END, { channel }),
-
-        /** MOCK */
         incoming: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.INCOMING, { channel, phoneNumber }),
         dialComplete: (channel = '1') => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE, { channel }),
         onHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.ON_HOOK, { channel }),
         offHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.OFF_HOOK, { channel }),
+
+        // 재연결 로직 추가
+        setAutoReconnect: (on: boolean) => ipcRenderer.invoke(IPC.CID.SET_AR, on),
+        getAutoReconnect: () => ipcRenderer.invoke(IPC.CID.GET_AR),
 
         onEvent: (handler: (evt: CidEvent) => void) => {
             if (typeof handler !== 'function') {
@@ -110,7 +118,28 @@ try {
     });
     console.log('[preload] exposed window.cid');
 } catch (e) {
-    console.error('[preload] failed', e);
+    console.error('[preload] cid failed', e);
+}
+
+try {
+    contextBridge.exposeInMainWorld('settings', {
+        get: () => ipcRenderer.invoke(IPC.SETTINGS.GET),
+        set: (s: any) => ipcRenderer.invoke(IPC.SETTINGS.SET, s),
+        patch: (p: any) => ipcRenderer.invoke(IPC.SETTINGS.PATCH, p),
+    });
+    console.log('[preload] exposed window.settings');
+} catch (e) {
+    console.error('[preload] settings failed: ', e);
+}
+
+try {
+    contextBridge.exposeInMainWorld('net', {
+        listInterfaces: () => ipcRenderer.invoke(IPC.NET.LIST_INTERFACES),
+        arpTable: () => ipcRenderer.invoke(IPC.NET.ARP_TABLE),
+    });
+    console.log('[preload] exposed window.settings');
+} catch (e) {
+    console.error('[preload] settings failed: ', e);
 }
 
 declare global {
@@ -124,14 +153,21 @@ declare global {
             deviceInfo: (channel?: string) => Promise<IpcResult<boolean>>;
             dialOut: (phoneNumber: string, channel?: string) => Promise<IpcResult<boolean>>;
             forceEnd: (channel?: string) => Promise<IpcResult<boolean>>;
-
-            /** MOCK */
             incoming: (phoneNumber: string, channel?: string) => Promise<IpcResult<boolean>>;
             dialComplete: (channel?: string) => Promise<IpcResult<boolean>>;
             onHook: (channel?: string) => Promise<IpcResult<boolean>>;
             offHook: (channel?: string) => Promise<IpcResult<boolean>>;
 
             onEvent: (handler: (evt: CidEvent) => void) => () => void;
+        };
+        settings: {
+            get: () => Promise<IpcResult<any>>;
+            set: (s: any) => Promise<IpcResult<any>>;
+            patch: (p: any) => Promise<IpcResult<any>>;
+        };
+        net: {
+            listInterfaces: () => Promise<IpcResult<any[]>>;
+            arpTable: () => Promise<IpcResult<any[]>>;
         };
     }
 }

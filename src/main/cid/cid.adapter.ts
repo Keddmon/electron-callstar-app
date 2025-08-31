@@ -5,12 +5,15 @@
  */
 import EventEmitter from 'events';
 import { SerialPort } from 'serialport';
+
 import logger from '../logs/logger';
+import { FrameBuffer } from './frame-buffer';
+import { makePacket, parsePacket } from './packet-parser';
+import { ExponentialBackoff } from '../utils/backoff';
+
 import { BAUD_RATE, OPCODE } from './cid.constants';
 import type { CidEvent, CidPortInfo } from '../types/cid';
 import { CidAdapterStatus, ParsedPacket } from '../interfaces/cid.interface';
-import { FrameBuffer } from './frame-buffer';
-import { makePacket, parsePacket } from './packet-parser';
 
 type OpenOptions = { path: string, baudRate?: number };
 
@@ -25,6 +28,9 @@ export class CidAdapter extends EventEmitter {
         lastEventAt: undefined,
         lastPacket: null
     };
+    // backoff 로직 추가
+    private reconnectBackoff?: ExponentialBackoff;
+    private lastOpenedPath?: string;
 
     /**
      * 포트 열기
@@ -34,6 +40,8 @@ export class CidAdapter extends EventEmitter {
         logger.info('[Adapter] Opening port...', opts);
         await this.close(); // 이미 열려있다면 정리
         const { path, baudRate = BAUD_RATE } = opts;
+        // backoff 로직 추가
+        this.lastOpenedPath = opts.path;
 
         try {
             this.port = new SerialPort({
@@ -42,7 +50,6 @@ export class CidAdapter extends EventEmitter {
                 dataBits: 8,
                 stopBits: 1,
                 parity: 'none',
-                autoOpen: false,        // 추후 확인 필요
             });
             await new Promise<void>((resolve, reject) => {
                 this.port!.open(err => (err ? reject(err) : resolve()));
@@ -57,6 +64,8 @@ export class CidAdapter extends EventEmitter {
                 logger.warn('[Adapter] Port closed');
                 this._updateStatus({ isOpen: false });
             });
+            // backoff 로직 추가: 성공 시, 재연결 로직 중지
+            this.reconnectBackoff = undefined;
 
             logger.info(`[Adapter} Port opened successfully: ${path}`);
             this._updateStatus({ isOpen: true, portPath: path });
@@ -95,8 +104,36 @@ export class CidAdapter extends EventEmitter {
      * --
      */
     private _updateStatus(newStatus: Partial<CidAdapterStatus>) {
+        const wasOpen = this.status.isOpen;
         this.status = { ...this.status, ...newStatus };
         this.emit('status', this.getStatus());
+
+        // backoff 로직 추가: 연결이 끊겼을 때 재연결 시작
+        if (wasOpen && !this.status.isOpen && this.lastOpenedPath) {
+            this.startReconnecting();
+        }
+    }
+
+    /**
+     * Backoff 재연결
+     */
+    private startReconnecting() {
+        if (this.reconnectBackoff || !this.lastOpenedPath) return;
+        logger.info(`[Adapter] Starting reconnection logic for ${this.lastOpenedPath}`);
+
+        const reconnectTask = async (): Promise<boolean> => {
+            try {
+                logger.info(`[Adapter] Attempting to reconnect to ${this.lastOpenedPath}...`);
+                await this.open({ path: this.lastOpenedPath! });
+                return this.status.isOpen;
+            } catch (error) {
+                logger.warn(`[Adapter] Reconnect attempt failed.`);
+                return false;
+            }
+        };
+
+        this.reconnectBackoff = new ExponentialBackoff(reconnectTask);
+        this.reconnectBackoff.start();
     }
 
     /**
@@ -129,9 +166,6 @@ export class CidAdapter extends EventEmitter {
         console.log(`[Adapter] ${OPCODE.FORCED_END}`);
     }
 
-    /**
-     * MOCK
-     */
     // 장치 → PC
     incoming(channel = '1', phoneNumber: string) {
         const packet = makePacket(channel, OPCODE.INCOMING, phoneNumber);
@@ -159,7 +193,6 @@ export class CidAdapter extends EventEmitter {
         const chunk = Buffer.from(packet, 'utf-8');
         this.onData(chunk);
     }
-    /** !MOCK */
 
     /**
      * 수신 데이터 처리

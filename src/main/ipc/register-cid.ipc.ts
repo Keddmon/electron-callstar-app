@@ -1,11 +1,11 @@
 import { BrowserWindow, IpcMain, ipcMain } from 'electron';
 import { CidAdapter } from '../cid/cid.adapter';
 import { IPC } from './channels';
-
 import { IpcResult } from '../types/ipc';
 import logger from '../logs/logger';
 import { CidEvent, CidPortInfo } from '../types/cid';
 import { CidAdapterStatus } from '../interfaces/cid.interface';
+import { settingsStore } from '../state/settings-store';
 
 /**
  * CID 어댑터 이벤트 → Frontend 이벤트 변환 (편의)
@@ -125,7 +125,6 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
         }
     });
 
-    /** MOCK */
     // INCOMING
     ipcm.handle(IPC.CID.INCOMING, async (_e, args: { phoneNumber: string, channel?: string }): Promise<IpcResult<boolean>> => {
         try {
@@ -170,6 +169,7 @@ export function registerCidIpc(adapter: CidAdapter, win: BrowserWindow, ipcm: Ip
         }
     });
 
+    // 메인 → 렌더러 이벤트 푸시
     adapter.on('event', (payload: CidEvent) => {
         const mapped = mapToFrontendEvent(payload);
         win.webContents.send(IPC.CID.EVENT, mapped);

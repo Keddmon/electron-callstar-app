@@ -12,17 +12,19 @@ import { CidAdapter } from './cid/cid.adapter';
 
 /** IPC */
 import { registerCidIpc } from './ipc/register-cid.ipc';
+import { registerSettingsIpc } from './ipc/register-settings.ipc';
+import { registerNetworkIpc } from './ipc/register-network.ipc';
 
 /** Constant */
 const DEV_URL = process.env.ELECTRON_DEV_SERVER_URL;
 const START_URL = process.env.START_URL || '';
 
 export async function createApp() {
-    logger.info('Create App: Application starting...');
+    logger.info('[app] Create App: Application starting...');
     await app.whenReady();
 
     const preloadPath = path.resolve(__dirname, 'preload.js');
-    console.log('[main] preloadPath =', preloadPath, 'exists?', fs.existsSync(preloadPath));
+    logger.debug(`[app] preloadPath = ${preloadPath}, exists? = ${fs.existsSync(preloadPath)}`);
 
     // 프로그램 해상도 및 설정
     const win = new BrowserWindow({
@@ -38,17 +40,19 @@ export async function createApp() {
 
     const adapter = new CidAdapter();
     registerCidIpc(adapter, win);
+    registerSettingsIpc();
+    registerNetworkIpc();
 
-    console.log('[app] DEV_URL =', DEV_URL);
-    console.log('[app] START_URL =', START_URL);
+    logger.info(`[app] DEV_URL = ${DEV_URL}`);
+    logger.info(`[app] START_URL = ${START_URL}`);
 
     // 로딩 상태 확인
     win.webContents.on('did-finish-load', () => {
-        console.log('[electron] did-finish-load');
+        logger.debug(`[app] did-finish-load`);
         if (!win.isVisible()) win.show();
     });
     win.webContents.on('did-fail-load', (_e, code, desc, url) => {
-        console.error('[electron] did-fail-load:', { code, desc, url });
+        logger.error(`[app] did-fail-load: `, { code, desc, url });
     });
 
     // 페이지 이동 추적
@@ -80,7 +84,7 @@ export async function createApp() {
 
     // 프로그램 종료
     app.on('window-all-closed', () => {
-        logger.info('All windows closed, quitting application.');
+        logger.info('[app] All windows closed, quitting application.');
         if (process.platform !== 'darwin') app.quit();
     });
 }

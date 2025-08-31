@@ -2,9 +2,11 @@
     "compilerOptions": {
         "target": "ES2020",
         "module": "CommonJS",
+        // "module": "NodeNext",
+        "moduleResolution": "Node",
+        // "moduleResolution": "NodeNext",
         "rootDir": "src/main",
         "outDir": "dist/main",
-        "moduleResolution": "Node",
         "strict": true,
         "esModuleInterop": true,
         "resolveJsonModule": true,

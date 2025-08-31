@@ -22,7 +22,20 @@ export const IPC = {
 
         OFF_HOOK: 'cid:offHook',
         ON_HOOK: 'cid:onHook',
-        
+
         EVENT: 'cid:event',
+
+        /** 재연결 채널 */
+        SET_AR: 'cid:autoReconnect:set',
+        GET_AR: 'cid:autoReconnect:get',
+    },
+    SETTINGS: {
+        GET: 'settings:get',
+        SET: 'settings:set',
+        PATCH: 'settings:patch',
+    },
+    NET: {
+        LIST_INTERFACES: 'net:listInterfaces',
+        ARP_TABLE: 'net:arpTable',
     },
 } as const;
