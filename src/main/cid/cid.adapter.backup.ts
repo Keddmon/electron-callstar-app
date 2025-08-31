@@ -28,7 +28,7 @@ export class CidAdapter extends EventEmitter {
         lastEventAt: undefined,
         lastPacket: null
     };
-    private isBusy = false; // 작업 중 상태(Lock)
+    // backoff 로직 추가
     private reconnectBackoff?: ExponentialBackoff;
     private lastOpenedPath?: string;
 
@@ -37,43 +37,43 @@ export class CidAdapter extends EventEmitter {
      * --
      */
     async open(opts: OpenOptions) {
-        if (this.isBusy) {
-            logger.warn('[Adapter] open() called while busy.');
-            return;
-        }
-        this.isBusy = true;
+        logger.info('[Adapter] Opening port...', opts);
+        await this.close(); // 이미 열려있다면 정리
+        const { path, baudRate = BAUD_RATE } = opts;
+        // backoff 로직 추가
+        this.lastOpenedPath = opts.path;
 
         try {
-            // open()이 close()를 포함하므로, close()는 내부 호출로 처리
-            await this.close(true);
-
-            logger.info('[Adapter] Opening port...', opts);
-            const { path, baudRate = BAUD_RATE } = opts;
-            this.port = new SerialPort({ path, baudRate, dataBits: 8, stopBits: 1, parity: 'none' });
-            this.lastOpenedPath = opts.path;
-
+            this.port = new SerialPort({
+                path,
+                baudRate,
+                dataBits: 8,
+                stopBits: 1,
+                parity: 'none',
+            });
             await new Promise<void>((resolve, reject) => {
                 this.port!.open(err => (err ? reject(err) : resolve()));
             });
 
             this.port.on('data', (chunk: Buffer) => this.onData(chunk));
-            this.port.on('error', (e: Error) => logger.error('[Adapter] Port error', e));
+            this.port.on('error', (e: Error) => {
+                logger.error('[Adapter] Port error', e);
+                this.emit('error', e);
+            });
             this.port.on('close', () => {
                 logger.warn('[Adapter] Port closed');
                 this._updateStatus({ isOpen: false });
             });
-
+            // backoff 로직 추가: 성공 시, 재연결 로직 중지
             this.reconnectBackoff = undefined;
-            logger.info(`[Adapter] Port opened successfully: ${path}`);
-            this._updateStatus({ isOpen: true, portPath: path });
 
+            logger.info(`[Adapter} Port opened successfully: ${path}`);
+            this._updateStatus({ isOpen: true, portPath: path });
         } catch (error) {
-            logger.error(`[Adapter] Failed to open port ${opts.path}`, error);
+            logger.error(`[Adapter] Failed to open port ${path}`, error);
             this.port = undefined;
             this._updateStatus({ isOpen: false, portPath: undefined });
             throw error;
-        } finally {
-            this.isBusy = false;
         }
     }
 
@@ -81,31 +81,14 @@ export class CidAdapter extends EventEmitter {
      * 포트 닫기
      * --
      */
-    async close(internalCall = false) {
-        if (!internalCall && this.isBusy) {
-            logger.warn('[Adapter] close() called while busy.');
-            return;
+    async close() {
+        if (this.port?.isOpen) {
+            logger.info(`[Adapter] Closing port: ${this.status.portPath}`);
+            await new Promise<void>((resolve) => this.port!.close(() => resolve()));
         }
-
-        if (!internalCall) {
-            this.isBusy = true;
-        }
-
-        try {
-            if (this.port?.isOpen) {
-                logger.info(`[Adapter] Closing port: ${this.status.portPath}`);
-                await new Promise<void>((resolve) => this.port!.close(() => resolve()));
-            }
-            this.port = undefined;
-            this.fb.clear();
-            this._updateStatus({ isOpen: false, portPath: undefined, lastEventAt: undefined, lastPacket: null });
-        } catch (error) {
-            logger.error('[Adapter] Error during close', error);
-        } finally {
-            if (!internalCall) {
-                this.isBusy = false;
-            }
-        }
+        this.port = undefined;
+        this.fb.clear();
+        this._updateStatus({ isOpen: false, portPath: undefined, lastEventAt: undefined, lastPacket: null });
     }
 
     /**
@@ -125,6 +108,7 @@ export class CidAdapter extends EventEmitter {
         this.status = { ...this.status, ...newStatus };
         this.emit('status', this.getStatus());
 
+        // backoff 로직 추가: 연결이 끊겼을 때 재연결 시작
         if (wasOpen && !this.status.isOpen && this.lastOpenedPath) {
             this.startReconnecting();
         }
@@ -235,6 +219,7 @@ export class CidAdapter extends EventEmitter {
         let evt: CidEvent | null = null;
         switch (p.opcode) {
             case OPCODE.INCOMING: {
+                // 수신: payload가 번호 또는 특수문자(P/C/O)
                 const mask = p.payload;
                 if (mask === OPCODE.PRIVATE) {
                     evt = { type: 'masked', channel: p.channel, reason: 'PRIVATE' };
