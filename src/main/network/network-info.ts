@@ -1,5 +1,6 @@
 import * as os from 'os';
 import { exec } from 'child_process';
+import logger from '../logs/logger';
 
 export type NetIf = {
     name: string;
@@ -42,7 +43,7 @@ export function getArpTable(): Promise<ArpEntry[]> {
 
         exec(cmd, { windowsHide: true }, (err, stdout) => {
             if (err) {
-                console.error('[net] arp failed', err);
+                logger.error('[net] arp failed', err);
                 return resolve([]);
             }
             const lines = (stdout || '').split('\n').map(s => s.trim()).filter(Boolean);

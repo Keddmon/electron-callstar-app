@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import * as path from 'path';
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import logger from '../logs/logger';
 
 export type Settings = {
@@ -18,67 +18,86 @@ export type Settings = {
     app: {
         startOnLogin?: boolean;     // 필요시 사용
     };
+    window?: {
+        width?: number;
+        height?: number;
+        x?: number;
+        y?: number;
+    };
 };
 
 const DEFAULTS: Settings = {
     cid: { baudRate: 19200, autoReconnect: true },
     ipPhone: { autoDetect: false },
     app: { startOnLogin: false },
+    window: { width: 1200, height: 800 },
 };
 
-export class SettingsStore {
+class SettingsStore {
     private filePath: string;
     private cache: Settings = DEFAULTS;
+    private saving: Promise<void> | null = null;
 
     constructor(filename = 'settings.json') {
         this.filePath = path.join(app.getPath('userData'), filename);
-        this.load();
     }
 
-    private load() {
+    async init() {
+        await this.load();
+    }
+
+    private async load() {
         try {
-            if (fs.existsSync(this.filePath)) {
-                const raw = fs.readFileSync(this.filePath, 'utf-8');
-                const parsed = JSON.parse(raw);
-                this.cache = { ...DEFAULTS, ...parsed };
-            } else {
-                this.save();
-            }
+            await fs.access(this.filePath);
+            const raw = await fs.readFile(this.filePath, 'utf-8');
+            const parsed = JSON.parse(raw);
+            this.cache = { ...DEFAULTS, ...parsed };
         } catch (e) {
-            logger.error('[settings] load failed: ', e);
+            logger.error('[settings] load failed, using defaults:', e);
             this.cache = { ...DEFAULTS };
-            this.save();
+            await this.save();
         }
     }
 
-    private save() {
-        try {
-            fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-            fs.writeFileSync(this.filePath, JSON.stringify(this.cache, null, 2), 'utf-8');
-        } catch (e) {
-            logger.error('[settings] save failed: ', e);
+    private async save() {
+        if (this.saving) {
+            await this.saving;
         }
+
+        const savePromise = (async () => {
+            try {
+                await fs.mkdir(path.dirname(this.filePath), { recursive: true });
+                await fs.writeFile(this.filePath, JSON.stringify(this.cache, null, 2), 'utf-8');
+            } catch (e) {
+                logger.error('[settings] save failed:', e);
+            }
+        })();
+
+        this.saving = savePromise;
+        await savePromise;
+        this.saving = null;
     }
 
     get(): Settings {
         return JSON.parse(JSON.stringify(this.cache));
     }
 
-    set(next: Settings) {
+    async set(next: Settings) {
         this.cache = { ...DEFAULTS, ...next };
-        this.save();
+        await this.save();
         return this.get();
     }
 
-    patch(p: Partial<Settings>) {
+    async patch(p: Partial<Settings>) {
         this.cache = {
             ...this.cache,
             ...p,
             cid: { ...this.cache.cid, ...(p.cid ?? {}) },
             ipPhone: { ...this.cache.ipPhone, ...(p.ipPhone ?? {}) },
             app: { ...this.cache.app, ...(p.app ?? {}) },
+            window: { ...this.cache.window, ...(p.window ?? {}) },
         };
-        this.save();
+        await this.save();
         return this.get();
     }
 }

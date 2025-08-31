@@ -10,8 +10,16 @@ import logger from './logs/logger';
 /** 어댑터 */
 import { CidAdapter } from './cid/cid.adapter';
 
+/** 서비스 */
+import { AutoReconnectService } from './reconnect/auto-reconnect.service';
+
 /** IPC */
 import { registerCidIpc } from './ipc/register-cid.ipc';
+import { registerSettingsIpc } from './ipc/register-settings.ipc';
+import { registerNetworkIpc } from './ipc/register-network.ipc';
+
+/** 상태 */
+import { settingsStore } from './state/settings-store';
 
 /** Constant */
 const DEV_URL = process.env.ELECTRON_DEV_SERVER_URL;
@@ -20,9 +28,21 @@ const START_URL = process.env.START_URL || '';
 const adapter = new CidAdapter();
 let mainWindow: BrowserWindow | null = null;
 
-function setupAppListeners() {
-    registerCidIpc(adapter, () => mainWindow);
+/** 서비스 초기화 */
+function initializeServices() {
+    const reconnectService = new AutoReconnectService(adapter);
+    // 다른 서비스가 있다면 여기서 초기화
+}
 
+/** handler 등록 */
+function registerIpcHandlers() {
+    registerCidIpc(adapter, () => mainWindow);
+    registerSettingsIpc();
+    registerNetworkIpc();
+}
+
+/** 애플리케이션 라이프 사이클 설정 */
+function registerAppLifecycleEvents() {
     app.on('window-all-closed', () => {
         logger.info('All windows closed, quitting application.');
         if (process.platform !== 'darwin') app.quit();
@@ -38,12 +58,16 @@ function setupAppListeners() {
 async function createWindow() {
     logger.info('[app] Create Window: Creating a new window...');
 
+    const { window: windowSettings } = settingsStore.get();
+
     const preloadPath = path.resolve(__dirname, 'preload.js');
     logger.debug(`[app] preloadPath = ${preloadPath}, exists? = ${fs.existsSync(preloadPath)}`);
 
     mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
+        width: windowSettings?.width ?? 1200,
+        height: windowSettings?.height ?? 800,
+        x: windowSettings?.x,
+        y: windowSettings?.y,
         show: false,
         webPreferences: {
             preload: preloadPath,
@@ -51,6 +75,24 @@ async function createWindow() {
             nodeIntegration: false,
         }
     });
+
+    // Debounce 타이머 변수
+    let saveTimer: NodeJS.Timeout;
+
+    const saveWindowGeometry = () => {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            if (!mainWindow) return;
+            const [width, height] = mainWindow.getSize();
+            const [x, y] = mainWindow.getPosition();
+            logger.debug(`Saving window geometry: ${JSON.stringify({ width, height, x, y })}`);
+            settingsStore.patch({ window: { width, height, x, y } });
+        }, 500);
+    };
+
+    // 창 크기/위치 변경 시 설정 저장 (Debounce 적용)
+    mainWindow.on('resize', saveWindowGeometry);
+    mainWindow.on('move', saveWindowGeometry);
 
     mainWindow.webContents.on('did-finish-load', () => {
         logger.debug(`[app] did-finish-load`);
@@ -89,6 +131,13 @@ export async function createApp() {
         await app.whenReady();
     }
     logger.info('[app] App is ready, setting up listeners and creating window.');
-    setupAppListeners();
+
+    // 설정 스토어 초기화
+    await settingsStore.init();
+
+    registerIpcHandlers();
+    initializeServices();
+    registerAppLifecycleEvents();
+
     await createWindow();
 }
