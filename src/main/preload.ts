@@ -86,6 +86,45 @@ type CidEvent =
 
     | { type: 'raw', packet: ParsedPacket };
 
+export interface Settings {
+    cid: {
+        lastPortPath?: string;
+        baudRate?: number;
+        autoReconnect?: boolean;
+    };
+    ipPhone: {
+        phoneNumber?: string;
+        ipAddress?: string;
+        macAddress?: string;
+        autoDetect?: boolean;
+    };
+    app: {
+        startOnLogin?: boolean;
+    };
+    window?: {
+        width?: number;
+        height?: number;
+        x?: number;
+        y?: number;
+    };
+}
+
+// Main Process의 `network-info.ts`에 정의된 타입
+export interface NetIf {
+    name: string;
+    address: string;
+    netmask: string;
+    family: string;
+    mac: string;
+    internal: boolean;
+}
+
+export interface ArpEntry {
+    ip: string;
+    mac: string;
+    type?: string;
+}
+
 console.log('[preload] running. href=', location.href, 'electron=', process.versions.electron);
 
 try {
@@ -99,7 +138,7 @@ try {
         deviceInfo: (channel = '1') => ipcRenderer.invoke(IPC.CID.DEVICE_INFO, { channel }),
         dialOut: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { channel, phoneNumber }),
         forceEnd: (channel = '1') => ipcRenderer.invoke(IPC.CID.FORCE_END, { channel }),
-        
+
         incoming: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.INCOMING, { channel, phoneNumber }),
         dialComplete: (channel = '1') => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE, { channel }),
         onHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.ON_HOOK, { channel }),
@@ -161,14 +200,21 @@ declare global {
 
             onEvent: (handler: (evt: CidEvent) => void) => () => void;
         };
+        /**
+         * 설정 관련 API
+         */
         settings: {
-            get: () => Promise<IpcResult<any>>;
-            set: (s: any) => Promise<IpcResult<any>>;
-            patch: (p: any) => Promise<IpcResult<any>>;
+            get: () => Promise<Settings>;
+            set: (settings: Settings) => Promise<void>;
+            patch: (partialSettings: Partial<Settings>) => Promise<void>;
         };
+
+        /**
+         * 네트워크 정보 API
+         */
         net: {
-            listInterfaces: () => Promise<IpcResult<any[]>>;
-            arpTable: () => Promise<IpcResult<any[]>>;
-        }
+            listInterfaces: () => Promise<NetIf[]>;
+            getArpTable: () => Promise<ArpEntry[]>;
+        };
     }
 }

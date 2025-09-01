@@ -11,7 +11,7 @@ import logger from './logs/logger';
 import { CidAdapter } from './cid/cid.adapter';
 
 /** 서비스 */
-import { AutoReconnectService } from './reconnect/auto-reconnect.service';
+// import { AutoReconnectService } from './reconnect/auto-reconnect.service';
 
 /** IPC */
 import { registerCidIpc } from './ipc/register-cid.ipc';
@@ -30,7 +30,7 @@ let mainWindow: BrowserWindow | null = null;
 
 /** 서비스 초기화 */
 function initializeServices() {
-    const reconnectService = new AutoReconnectService(adapter);
+    // const reconnectService = new AutoReconnectService(adapter);
     // 다른 서비스가 있다면 여기서 초기화
 }
 
