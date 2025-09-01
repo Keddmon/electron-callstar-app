@@ -1,5 +1,5 @@
 /**
- * renderer에 노출되는 IPC 브리지(window.cid)
+ * 메인 프로세스 + 렌더러 프로세스 연결
  * --
  */
 import { contextBridge, ipcRenderer } from 'electron';
@@ -42,6 +42,15 @@ const IPC = {
         ON_HOOK: 'cid:onHook',
         OFF_HOOK: 'cid:offHook',
         EVENT: 'cid:event',
+    },
+    SETTINGS: {
+        GET: 'settings:get',
+        SET: 'settings:set',
+        PATCH: 'settings:patch',
+    },
+    NET: {
+        LIST_INTERFACES: 'net:listInterfaces',
+        ARP_TABLE: 'net:arpTable',
     },
 } as const;
 
@@ -90,7 +99,7 @@ try {
         deviceInfo: (channel = '1') => ipcRenderer.invoke(IPC.CID.DEVICE_INFO, { channel }),
         dialOut: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { channel, phoneNumber }),
         forceEnd: (channel = '1') => ipcRenderer.invoke(IPC.CID.FORCE_END, { channel }),
-
+        
         incoming: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.INCOMING, { channel, phoneNumber }),
         dialComplete: (channel = '1') => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE, { channel }),
         onHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.ON_HOOK, { channel }),
@@ -108,6 +117,27 @@ try {
         },
     });
     console.log('[preload] exposed window.cid');
+} catch (e) {
+    console.error('[preload] failed', e);
+}
+
+try {
+    contextBridge.exposeInMainWorld('settings', {
+        get: () => ipcRenderer.invoke(IPC.SETTINGS.GET),
+        set: (settings: any) => ipcRenderer.invoke(IPC.SETTINGS.SET, settings),
+        patch: (partialSettings: any) => ipcRenderer.invoke(IPC.SETTINGS.PATCH, partialSettings),
+    });
+    console.log('[preload] exposed window.settings');
+} catch (e) {
+    console.error('[preload] failed', e);
+}
+
+try {
+    contextBridge.exposeInMainWorld('net', {
+        listInterfaces: () => ipcRenderer.invoke(IPC.NET.LIST_INTERFACES),
+        getArpTable: () => ipcRenderer.invoke(IPC.NET.ARP_TABLE),
+    });
+    console.log('[preload] exposed window.net');
 } catch (e) {
     console.error('[preload] failed', e);
 }
@@ -131,5 +161,14 @@ declare global {
 
             onEvent: (handler: (evt: CidEvent) => void) => () => void;
         };
+        settings: {
+            get: () => Promise<IpcResult<any>>;
+            set: (s: any) => Promise<IpcResult<any>>;
+            patch: (p: any) => Promise<IpcResult<any>>;
+        };
+        net: {
+            listInterfaces: () => Promise<IpcResult<any[]>>;
+            arpTable: () => Promise<IpcResult<any[]>>;
+        }
     }
 }
