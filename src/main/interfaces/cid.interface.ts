@@ -15,6 +15,4 @@ export interface ParsedPacket {
 export interface CidAdapterStatus {
     isOpen: boolean;
     portPath?: string;
-    lastEventAt?: number;
-    lastPacket?: ParsedPacket | null;
 };

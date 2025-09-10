@@ -4,14 +4,14 @@
  */
 import EventEmitter from 'events';
 import { SerialPort } from 'serialport';
+
 import logger from '../logs/logger';
-import { BAUD_RATE, OPCODE } from './cid.constants';
-import type { CidEvent, CidPortInfo } from '../types/cid';
-import { CidAdapterStatus, ParsedPacket } from '../interfaces/cid.interface';
 import { FrameBuffer } from './frame-buffer';
 import { makePacket, parsePacket } from './packet-parser';
 
-type OpenOptions = { path: string, baudRate?: number };
+import { BAUD_RATE, CHANNEL, DATA_BITS, OPCODE, STOP_BITS } from './cid.constants';
+import type { CidEvent, CidPortInfo } from '../types/cid';
+import { CidAdapterStatus, ParsedPacket } from '../interfaces/cid.interface';
 
 const LIKELY_CID_IDENTIFIERS = ['cp210x', 'silicon labs'];
 
@@ -21,27 +21,24 @@ export class CidAdapter extends EventEmitter {
     private status: CidAdapterStatus = {
         isOpen: false,
         portPath: undefined,
-        lastEventAt: undefined,
-        lastPacket: null
     };
 
     /**
      * 포트 열기
      * --
      */
-    async open(opts: OpenOptions) {
-        logger.info('[Adapter] Opening port...', opts);
+    async open(path: string) {
+        logger.info('[Adapter] Opening port...', path);
         await this.close(); // 이미 열려있다면 정리
-        const { path, baudRate = BAUD_RATE } = opts;
 
         try {
             this.port = new SerialPort({
                 path,
-                baudRate,
-                dataBits: 8,
-                stopBits: 1,
+                baudRate: BAUD_RATE,
+                dataBits: DATA_BITS,
+                stopBits: STOP_BITS,
                 parity: 'none',
-                autoOpen: false,        // 추후 확인 필요
+                autoOpen: false,        // 추후 확인 필요 (true 일 시, 항상 포트가 고정됨)
             });
             await new Promise<void>((resolve, reject) => {
                 this.port!.open(err => (err ? reject(err) : resolve()));
@@ -78,7 +75,7 @@ export class CidAdapter extends EventEmitter {
         }
         this.port = undefined;
         this.fb.clear();
-        this._updateStatus({ isOpen: false, portPath: undefined, lastEventAt: undefined, lastPacket: null });
+        this._updateStatus({ isOpen: false, portPath: undefined });
     }
 
     /**
@@ -111,47 +108,53 @@ export class CidAdapter extends EventEmitter {
     }
 
     // PC ↔ 장치
-    requestDeviceInfo(channel = '1') {
-        this.writeRaw(makePacket(channel, OPCODE.DEVICE_INFO, ''));
+    // requestDeviceInfo(channel = '1') {
+    requestDeviceInfo() {
+        this.writeRaw(makePacket(CHANNEL, OPCODE.DEVICE_INFO));
         console.log(`[Adapter] ${OPCODE.DEVICE_INFO}`);
     }
 
     // PC → 장치
-    dialOut(channel = '1', phoneNumber: string) {
-        this.writeRaw(makePacket(channel, OPCODE.DIAL_OUT, phoneNumber));
+    dialOut(phoneNumber: string) {
+        this.writeRaw(makePacket(CHANNEL, OPCODE.DIAL_OUT, phoneNumber));
         console.log(`[Adapter] ${OPCODE.DIAL_OUT}`);
     }
 
     // PC → 장치
-    forceEnd(channel = '1') {
-        this.writeRaw(makePacket(channel, OPCODE.FORCED_END));
+    // forceEnd(channel = '1') {
+    forceEnd() {
+        this.writeRaw(makePacket(CHANNEL, OPCODE.FORCED_END));
         console.log(`[Adapter] ${OPCODE.FORCED_END}`);
     }
 
     // 장치 → PC
-    incoming(channel = '1', phoneNumber: string) {
-        const packet = makePacket(channel, OPCODE.INCOMING, phoneNumber);
+    // incoming(channel = '1', phoneNumber: string) {
+    incoming(phoneNumber: string) {
+        const packet = makePacket(CHANNEL, OPCODE.INCOMING, phoneNumber);
         const chunk = Buffer.from(packet, 'utf-8');
         this.onData(chunk);
     }
 
     // 장치 → PC
-    dialComplete(channel = '1') {
-        const packet = makePacket(channel, OPCODE.DIAL_COMPLETE);
+    // dialComplete(channel = '1') {
+    dialComplete() {
+        const packet = makePacket(CHANNEL, OPCODE.DIAL_COMPLETE);
         const chunk = Buffer.from(packet, 'utf-8');
         this.onData(chunk);
     }
 
     // 장치 → PC
-    offHook(channel = '1') {
-        const packet = makePacket(channel, OPCODE.OFF_HOOK);
+    // offHook(channel = '1') {
+    offHook() {
+        const packet = makePacket(CHANNEL, OPCODE.OFF_HOOK);
         const chunk = Buffer.from(packet, 'utf-8');
         this.onData(chunk);
     }
 
     // 장치 → PC
-    onHook(channel = '1') {
-        const packet = makePacket(channel, OPCODE.ON_HOOK);
+    // onHook(channel = '1') {
+    onHook() {
+        const packet = makePacket(CHANNEL, OPCODE.ON_HOOK);
         const chunk = Buffer.from(packet, 'utf-8');
         this.onData(chunk);
     }
@@ -167,7 +170,7 @@ export class CidAdapter extends EventEmitter {
             const parsed = parsePacket(raw);
             if (!parsed) continue;
 
-            this._updateStatus({ lastEventAt: Date.now(), lastPacket: parsed });
+            // this._updateStatus({ lastEventAt: Date.now(), lastPacket: parsed });
             this.emit('packet', parsed);
             this.emitHighLevel(parsed);
         }
@@ -184,35 +187,35 @@ export class CidAdapter extends EventEmitter {
                 // 수신: payload가 번호 또는 특수문자(P/C/O)
                 const mask = p.payload;
                 if (mask === OPCODE.PRIVATE) {
-                    evt = { type: 'masked', channel: p.channel, reason: 'PRIVATE' };
+                    evt = { type: 'masked', reason: 'PRIVATE' };
                 } else if (mask === OPCODE.PUBLIC) {
-                    evt = { type: 'masked', channel: p.channel, reason: 'PUBLIC' };
+                    evt = { type: 'masked', reason: 'PUBLIC' };
                 } else if (mask === OPCODE.UNKNOWN) {
-                    evt = { type: 'masked', channel: p.channel, reason: 'UNKNOWN' };
+                    evt = { type: 'masked', reason: 'UNKNOWN' };
                 } else {
-                    evt = { type: 'incoming', channel: p.channel, phoneNumber: mask };
+                    evt = { type: 'incoming', phoneNumber: mask };
                 }
                 break;
             }
             case OPCODE.DEVICE_INFO:
-                evt = { type: 'device-info', channel: p.channel, payload: p.payload };
+                evt = { type: 'device-info', device: p.payload };
                 break;
 
             case OPCODE.DIAL_OUT:
-                evt = { type: 'dial-out', channel: p.channel, phoneNumber: p.payload };
+                evt = { type: 'dial-out', phoneNumber: p.payload };
                 break;
             case OPCODE.DIAL_COMPLETE:
-                evt = { type: 'dial-complete', channel: p.channel };
+                evt = { type: 'dial-complete' };
                 break;
             case OPCODE.FORCED_END:
-                evt = { type: 'force-end', channel: p.channel };
+                evt = { type: 'force-end' };
                 break;
 
             case OPCODE.OFF_HOOK:
-                evt = { type: 'off-hook', channel: p.channel };
+                evt = { type: 'off-hook' };
                 break;
             case OPCODE.ON_HOOK:
-                evt = { type: 'on-hook', channel: p.channel };
+                evt = { type: 'on-hook' };
                 break;
             default:
                 logger.debug(`[Adapter] Unknown opcode received: ${p.opcode}`);
@@ -222,14 +225,13 @@ export class CidAdapter extends EventEmitter {
             logger.debug('[Adapter] Emitting high-level event', evt);
             this.emit('event', evt);
         }
-        this.emit('raw', { type: 'raw', packet: p } as CidEvent);
     }
 
     /**
      * 연결된 포트 탐지
      * --
      */
-    async listPorts(): Promise<CidPortInfo[]> {
+    async listPorts() {
         const ports = await SerialPort.list();
 
         return ports.map((p) => {
@@ -238,12 +240,6 @@ export class CidAdapter extends EventEmitter {
 
             return {
                 path: p.path,
-                manufacturer: p.manufacturer,
-                serialNumber: p.serialNumber,
-                pnpId: p.pnpId,
-                locationId: p.locationId as any,
-                vendorId: p.vendorId,
-                productId: p.productId,
                 friendlyName: (p as any).friendlyName,
                 isLikelyCid,
             };

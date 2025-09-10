@@ -4,9 +4,9 @@
  */
 import { contextBridge, ipcRenderer } from 'electron';
 
-// // import { IPC } from './ipc/channels';
-// // import { IpcResult } from './types/ipc';
-// // import { CidEvent, CidPortInfo } from './types/cid';
+// import { IPC } from './ipc/channels';
+// import { IpcResult } from './types/ipc';
+// import { CidEvent, CidPortInfo } from './types/cid';
 // import { CidAdapterStatus } from './interfaces/cid.interface';
 
 /**
@@ -129,20 +129,20 @@ console.log('[preload] running. href=', location.href, 'electron=', process.vers
 
 try {
     contextBridge.exposeInMainWorld('cid', {
-        open: (path: string, baudRate?: number) => ipcRenderer.invoke(IPC.CID.OPEN, { path, baudRate }),
+        open: (path: string) => ipcRenderer.invoke(IPC.CID.OPEN, { path }),
         close: () => ipcRenderer.invoke(IPC.CID.CLOSE),
         status: () => ipcRenderer.invoke(IPC.CID.STATUS),
 
         listPorts: () => ipcRenderer.invoke(IPC.CID.LIST_PORTS),
 
-        deviceInfo: (channel = '1') => ipcRenderer.invoke(IPC.CID.DEVICE_INFO, { channel }),
-        dialOut: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { channel, phoneNumber }),
-        forceEnd: (channel = '1') => ipcRenderer.invoke(IPC.CID.FORCE_END, { channel }),
+        deviceInfo: () => ipcRenderer.invoke(IPC.CID.DEVICE_INFO,),
+        dialOut: (phoneNumber: string) => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { phoneNumber }),
+        forceEnd: () => ipcRenderer.invoke(IPC.CID.FORCE_END,),
 
-        incoming: (channel = '1', phoneNumber: string) => ipcRenderer.invoke(IPC.CID.INCOMING, { channel, phoneNumber }),
-        dialComplete: (channel = '1') => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE, { channel }),
-        onHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.ON_HOOK, { channel }),
-        offHook: (channel = '1') => ipcRenderer.invoke(IPC.CID.OFF_HOOK, { channel }),
+        incoming: (phoneNumber: string) => ipcRenderer.invoke(IPC.CID.INCOMING, { phoneNumber }),
+        dialComplete: () => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE,),
+        onHook: () => ipcRenderer.invoke(IPC.CID.ON_HOOK,),
+        offHook: () => ipcRenderer.invoke(IPC.CID.OFF_HOOK,),
 
         onEvent: (handler: (evt: CidEvent) => void) => {
             if (typeof handler !== 'function') {
@@ -181,40 +181,40 @@ try {
     console.error('[preload] failed', e);
 }
 
-declare global {
-    interface Window {
-        cid: {
-            open: (path: string, baudRate?: number) => Promise<IpcResult<CidAdapterStatus>>;
-            close: () => Promise<IpcResult<CidAdapterStatus>>;
-            status: () => Promise<IpcResult<CidAdapterStatus>>;
-            listPorts: () => Promise<IpcResult<CidPortInfo[]>>;
+// declare global {
+//     interface Window {
+//         cid: {
+//             open: (path: string) => Promise<IpcResult<CidAdapterStatus>>;
+//             close: () => Promise<CidAdapterStatus>;
+//             status: () => Promise<CidAdapterStatus>;
+//             listPorts: () => Promise<any>;
 
-            deviceInfo: (channel?: string) => Promise<IpcResult<boolean>>;
-            dialOut: (phoneNumber: string, channel?: string) => Promise<IpcResult<boolean>>;
-            forceEnd: (channel?: string) => Promise<IpcResult<boolean>>;
+//             deviceInfo: () => Promise<IpcResult<boolean>>;
+//             dialOut: (phoneNumber: string) => Promise<IpcResult<boolean>>;
+//             forceEnd: () => Promise<IpcResult<boolean>>;
 
-            incoming: (phoneNumber: string, channel?: string) => Promise<IpcResult<boolean>>;
-            dialComplete: (channel?: string) => Promise<IpcResult<boolean>>;
-            onHook: (channel?: string) => Promise<IpcResult<boolean>>;
-            offHook: (channel?: string) => Promise<IpcResult<boolean>>;
+//             incoming: (phoneNumber: string) => Promise<IpcResult<boolean>>;
+//             dialComplete: () => Promise<IpcResult<boolean>>;
+//             onHook: () => Promise<IpcResult<boolean>>;
+//             offHook: () => Promise<IpcResult<boolean>>;
 
-            onEvent: (handler: (evt: CidEvent) => void) => () => void;
-        };
-        /**
-         * 설정 관련 API
-         */
-        settings: {
-            get: () => Promise<Settings>;
-            set: (settings: Settings) => Promise<void>;
-            patch: (partialSettings: Partial<Settings>) => Promise<void>;
-        };
+//             onEvent: (handler: (evt: CidEvent) => void) => () => void;
+//         };
+//         /**
+//          * 설정 관련 API
+//          */
+//         settings: {
+//             get: () => Promise<Settings>;
+//             set: (settings: Settings) => Promise<void>;
+//             patch: (partialSettings: Partial<Settings>) => Promise<void>;
+//         };
 
-        /**
-         * 네트워크 정보 API
-         */
-        net: {
-            listInterfaces: () => Promise<NetIf[]>;
-            getArpTable: () => Promise<ArpEntry[]>;
-        };
-    }
-}
+//         /**
+//          * 네트워크 정보 API
+//          */
+//         net: {
+//             listInterfaces: () => Promise<NetIf[]>;
+//             getArpTable: () => Promise<ArpEntry[]>;
+//         };
+//     }
+// }

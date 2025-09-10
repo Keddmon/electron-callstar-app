@@ -7,6 +7,11 @@ export const ETX = '\x03';              // 03H: 끝  (1byte)
 
 export const FRAME_BODY_LEN = 20;       // Total 20(22 - 1 - 1) byte 통신
 
+export const BAUD_RATE = 19200;         // baudRate 기본값 19200
+export const CHANNEL = '1';             // channel 기본값 '1' / string
+export const DATA_BITS = 8;             // dataBits 기본값 8
+export const STOP_BITS = 1;             // stopBits 기본값 1
+
 /** CID 프로토콜 명령어 */
 export const OPCODE = {
 
@@ -31,5 +36,3 @@ export const OPCODE = {
 } as const;
 
 export type Opcode = typeof OPCODE[keyof typeof OPCODE];
-
-export const BAUD_RATE = 19200;

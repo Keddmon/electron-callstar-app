@@ -4,33 +4,34 @@
  */
 import { BrowserWindow, IpcMain, ipcMain } from 'electron';
 import { CidAdapter } from '../cid/cid.adapter';
-import { IPC } from './channels';
-import { IpcResult } from '../types/ipc';
 import logger from '../logs/logger';
-import { CidEvent, CidPortInfo } from '../types/cid';
+
+import { IPC } from './channels';
 import { CidAdapterStatus } from '../interfaces/cid.interface';
+import { IpcResult } from '../types/ipc';
+import { CidEvent, CidPortInfo } from '../types/cid';
 
 function mapToFrontendEvent(evt: CidEvent) {
     switch (evt?.type) {
         case 'device-info':
-            return { type: 'cid:deviceInfo', payload: { channel: evt.channel, info: evt.payload } };
+            return { type: evt.type, device: evt.device };
 
         case 'incoming':
-            return { type: 'cid:incoming', payload: { channel: evt.channel, phoneNumber: evt.phoneNumber } };
+            return { type: evt.type, phoneNumber: evt.phoneNumber };
         case 'masked':
-            return { type: 'cid:incoming', payload: { channel: evt.channel, reason: evt.reason } };
+            return { type: evt.type, reason: evt.reason };
 
         case 'dial-out':
-            return { type: 'cid:dialOut', payload: { channel: evt.channel, phoneNumber: evt.phoneNumber } };
+            return { type: evt.type, phoneNumber: evt.phoneNumber };
         case 'dial-complete':
-            return { type: 'cid:dialComplete', payload: { channel: evt.channel } };
+            return { type: evt.type };
         case 'force-end':
-            return { type: 'cid:forceEnd', payload: { channel: evt.channel } };
+            return { type: evt.type };
 
         case 'on-hook':
-            return { type: 'cid:onHook', payload: { channel: evt.channel } };
+            return { type: evt.type };
         case 'off-hook':
-            return { type: 'cid:offHook', payload: { channel: evt.channel } };
+            return { type: evt.type };
 
         default:
             logger.warn('[IPC] Unknown CID event type received: ', evt);
@@ -45,16 +46,24 @@ function mapToFrontendEvent(evt: CidEvent) {
  * - adapter.on:  단방향 통신
  */
 export function registerCidIpc(adapter: CidAdapter, getWindow: () => BrowserWindow | null, ipcm: IpcMain = ipcMain) {
-    const DEFAULT_CHANNEL = '1';
 
     // CID OPEN
-    ipcm.handle(IPC.CID.OPEN, async (_e, args: { path: string; baudRate?: number }): Promise<IpcResult<CidAdapterStatus>> => {
+    // ipcm.handle(IPC.CID.OPEN, async (_e, args: { path: string }): Promise<IpcResult<CidAdapterStatus>> => {
+    //     try {
+    //         await adapter.open(args.path);
+    //         return { data: adapter.getStatus(), error: null };
+    //     } catch (e: any) {
+    //         logger.error(`[IPC Error] ${IPC.CID.OPEN}: `, e);
+    //         return { data: null, error: e.message || String(e) };
+    //     }
+    // });
+    ipcm.handle(IPC.CID.OPEN, async (_e, { path }) => {
         try {
-            await adapter.open(args);
-            return { data: adapter.getStatus(), error: null };
+            const result = await adapter.open(path);
+            return result;
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.OPEN}: `, e);
-            return { data: null, error: e.message || String(e) };
+            throw new Error(`'${path}' 포트를 여는 데 실패했습니다.`);
         }
     });
 
@@ -85,27 +94,39 @@ export function registerCidIpc(adapter: CidAdapter, getWindow: () => BrowserWind
         try {
             const ports = await adapter.listPorts();
             return { data: ports, error: null };
-        } catch (e: any) {
+        } catch (e: any | unknown) {
             logger.error(`[IPC Error] ${IPC.CID.LIST_PORTS}: `, e);
-            return { data: null, error: e.message || String(e) };
+            throw new Error(`[cid][listPorts] Error ${e.message}`)
         }
     });
 
     // CID DEVICE INFO
-    ipcm.handle(IPC.CID.DEVICE_INFO, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+    // ipcm.handle(IPC.CID.DEVICE_INFO, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+    // ipcm.handle(IPC.CID.DEVICE_INFO, async (): Promise<IpcResult<boolean>> => {
+    //     try {
+    //         adapter.requestDeviceInfo();
+    //         return { data: true, error: null };
+    //     } catch (e: any) {
+    //         logger.error(`[IPC Error] ${IPC.CID.DEVICE_INFO}: `, e);
+    //         return { data: null, error: e.message || String(e) };
+    //     }
+    // });
+    ipcm.handle(IPC.CID.DEVICE_INFO, async (): Promise<IpcResult<any>> => {
         try {
-            adapter.requestDeviceInfo(args?.channel ?? DEFAULT_CHANNEL);
-            return { data: true, error: null };
-        } catch (e: any) {
+            const result = adapter.requestDeviceInfo();
+            return { data: result, error: null };
+        } catch (e: any | unknown) {
             logger.error(`[IPC Error] ${IPC.CID.DEVICE_INFO}: `, e);
-            return { data: null, error: e.message || String(e) };
+            return { data: null, error: e.message };
+            // throw new Error(`[cid][deviceInfo] Error ${e.message}`);
         }
     });
 
     // DIAL OUT
-    ipcm.handle(IPC.CID.DIAL_OUT, async (_e, args: { channel?: string, phoneNumber: string }): Promise<IpcResult<boolean>> => {
+    // ipcm.handle(IPC.CID.DIAL_OUT, async (_e, args: { channel?: string, phoneNumber: string }): Promise<IpcResult<boolean>> => {
+    ipcm.handle(IPC.CID.DIAL_OUT, async (_e, args: { phoneNumber: string }): Promise<IpcResult<boolean>> => {
         try {
-            adapter.dialOut(args.channel ?? DEFAULT_CHANNEL, args.phoneNumber);
+            adapter.dialOut(args.phoneNumber);
             return { data: true, error: null };
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.DIAL_OUT}: `, e);
@@ -114,9 +135,10 @@ export function registerCidIpc(adapter: CidAdapter, getWindow: () => BrowserWind
     });
 
     // FORCE END
-    ipcm.handle(IPC.CID.FORCE_END, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+    // ipcm.handle(IPC.CID.FORCE_END, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+    ipcm.handle(IPC.CID.FORCE_END, async (): Promise<IpcResult<boolean>> => {
         try {
-            adapter.forceEnd(args?.channel ?? DEFAULT_CHANNEL);
+            adapter.forceEnd();
             return { data: true, error: null };
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.FORCE_END} `, e);
@@ -125,20 +147,31 @@ export function registerCidIpc(adapter: CidAdapter, getWindow: () => BrowserWind
     });
 
     // INCOMING
-    ipcm.handle(IPC.CID.INCOMING, async (_e, args: { channel?: string, phoneNumber: string }): Promise<IpcResult<boolean>> => {
+    // ipcm.handle(IPC.CID.INCOMING, async (_e, args: { channel?: string, phoneNumber: string }): Promise<IpcResult<boolean>> => {
+    // ipcm.handle(IPC.CID.INCOMING, async (_e, args: { phoneNumber: string }): Promise<IpcResult<boolean>> => {
+    //     try {
+    //         adapter.incoming(args.phoneNumber);
+    //         return { data: true, error: null };
+    //     } catch (e: any) {
+    //         logger.error(`[IPC Error] ${IPC.CID.INCOMING}`, e);
+    //         return { data: null, error: e.message || String(e) };
+    //     }
+    // });
+    ipcm.handle(IPC.CID.INCOMING, async (_e, { phoneNumber }): Promise<IpcResult<any>> => {
         try {
-            adapter.incoming(args.channel ?? DEFAULT_CHANNEL, args.phoneNumber);
-            return { data: true, error: null };
+            const result = adapter.incoming(phoneNumber);
+            return { data: result, error: null };
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.INCOMING}`, e);
-            return { data: null, error: e.message || String(e) };
+            throw new Error(`[IPC Error] ${e.message}`);
         }
     });
 
     // DIAL COMPLETE
-    ipcm.handle(IPC.CID.DIAL_COMPLETE, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+    // ipcm.handle(IPC.CID.DIAL_COMPLETE, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+    ipcm.handle(IPC.CID.DIAL_COMPLETE, async (): Promise<IpcResult<boolean>> => {
         try {
-            adapter.dialComplete(args?.channel ?? DEFAULT_CHANNEL);
+            adapter.dialComplete();
             return { data: true, error: null };
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.DIAL_COMPLETE}`, e);
@@ -147,9 +180,10 @@ export function registerCidIpc(adapter: CidAdapter, getWindow: () => BrowserWind
     });
 
     // OFF HOOK
-    ipcm.handle(IPC.CID.OFF_HOOK, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+    // ipcm.handle(IPC.CID.OFF_HOOK, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+    ipcm.handle(IPC.CID.OFF_HOOK, async (): Promise<IpcResult<boolean>> => {
         try {
-            adapter.offHook(args?.channel ?? DEFAULT_CHANNEL);
+            adapter.offHook();
             return { data: true, error: null };
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.OFF_HOOK}`, e);
@@ -158,9 +192,10 @@ export function registerCidIpc(adapter: CidAdapter, getWindow: () => BrowserWind
     });
 
     // ON HOOK
-    ipcm.handle(IPC.CID.ON_HOOK, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+    // ipcm.handle(IPC.CID.ON_HOOK, async (_e, args?: { channel?: string }): Promise<IpcResult<boolean>> => {
+    ipcm.handle(IPC.CID.ON_HOOK, async (): Promise<IpcResult<boolean>> => {
         try {
-            adapter.onHook(args?.channel ?? DEFAULT_CHANNEL);
+            adapter.onHook();
             return { data: true, error: null };
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.ON_HOOK}`, e);
