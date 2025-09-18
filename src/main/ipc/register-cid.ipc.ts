@@ -5,39 +5,10 @@
 import { BrowserWindow, IpcMain, ipcMain } from 'electron';
 import { CidAdapter } from '../cid/cid.adapter';
 import logger from '../logs/logger';
-
 import { IPC } from './channels';
 import { CidAdapterStatus } from '../interfaces/cid.interface';
 import { IpcResult } from '../types/ipc';
 import { CidEvent, CidPortInfo } from '../types/cid';
-
-function mapToFrontendEvent(evt: CidEvent) {
-    switch (evt?.type) {
-        case 'device-info':
-            return { type: evt.type, device: evt.device };
-
-        case 'incoming':
-            return { type: evt.type, phoneNumber: evt.phoneNumber };
-        case 'masked':
-            return { type: evt.type, reason: evt.reason };
-
-        case 'dial-out':
-            return { type: evt.type, phoneNumber: evt.phoneNumber };
-        case 'dial-complete':
-            return { type: evt.type };
-        case 'force-end':
-            return { type: evt.type };
-
-        case 'on-hook':
-            return { type: evt.type };
-        case 'off-hook':
-            return { type: evt.type };
-
-        default:
-            logger.warn('[IPC] Unknown CID event type received: ', evt);
-            return { type: 'event', payload: evt };
-    }
-}
 
 /**
  * CidIpc (cid.adapter) 등록
@@ -57,13 +28,22 @@ export function registerCidIpc(adapter: CidAdapter, getWindow: () => BrowserWind
     //         return { data: null, error: e.message || String(e) };
     //     }
     // });
-    ipcm.handle(IPC.CID.OPEN, async (_e, { path }) => {
+    // ipcm.handle(IPC.CID.OPEN, async (_e, { path }) => {
+    //     try {
+    //         const result = await adapter.open(path);
+    //         return result;
+    //     } catch (e: any) {
+    //         logger.error(`[IPC Error] ${IPC.CID.OPEN}: `, e);
+    //         throw new Error(`'${path}' 포트를 여는 데 실패했습니다.`);
+    //     }
+    // });
+    ipcm.handle(IPC.CID.OPEN, async (_e, { path }): Promise<IpcResult<CidAdapterStatus>> => {
         try {
-            const result = await adapter.open(path);
-            return result;
+            await adapter.open(path);
+            return { data: adapter.getStatus(), error: null };
         } catch (e: any) {
             logger.error(`[IPC Error] ${IPC.CID.OPEN}: `, e);
-            throw new Error(`'${path}' 포트를 여는 데 실패했습니다.`);
+            return { data: null, error: e.message || '포트 연결 실패' };
         }
     });
 
@@ -203,18 +183,19 @@ export function registerCidIpc(adapter: CidAdapter, getWindow: () => BrowserWind
         }
     });
 
-    adapter.on('event', (payload: CidEvent) => {
+    // Electron → Frontend 단방향 이벤트 전송
+    const sendToFrontend = (channel: string, payload: any) => {
         const win = getWindow();
-        if (win) {
-            const mapped = mapToFrontendEvent(payload);
-            win.webContents.send(IPC.CID.EVENT, mapped);
+        if (win && !win.isDestroyed()) {
+            win.webContents.send(channel, payload);
         }
+    };
+
+    adapter.on('event', (payload: CidEvent) => {
+        sendToFrontend(IPC.CID.EVENT, payload);
     });
 
     adapter.on('status', (status: CidAdapterStatus) => {
-        const win = getWindow();
-        if (win) {
-            win.webContents.send(IPC.CID.EVENT, { type: 'status', status });
-        }
+        sendToFrontend(IPC.CID.EVENT, { type: 'status', status });
     });
 }

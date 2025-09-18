@@ -150,7 +150,6 @@ try {
                 return () => { };
             }
             const wrapped = (_e: Electron.IpcRendererEvent, payload: CidEvent) => handler(payload);
-
             ipcRenderer.on(IPC.CID.EVENT, wrapped);
             return () => ipcRenderer.removeListener(IPC.CID.EVENT, wrapped);
         },

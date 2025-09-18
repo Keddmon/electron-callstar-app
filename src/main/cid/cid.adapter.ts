@@ -4,13 +4,11 @@
  */
 import EventEmitter from 'events';
 import { SerialPort } from 'serialport';
-
 import logger from '../logs/logger';
 import { FrameBuffer } from './frame-buffer';
 import { makePacket, parsePacket } from './packet-parser';
-
 import { BAUD_RATE, CHANNEL, DATA_BITS, OPCODE, STOP_BITS } from './cid.constants';
-import type { CidEvent, CidPortInfo } from '../types/cid';
+import type { CidEvent } from '../types/cid';
 import { CidAdapterStatus, ParsedPacket } from '../interfaces/cid.interface';
 
 const LIKELY_CID_IDENTIFIERS = ['cp210x', 'silicon labs'];
@@ -51,7 +49,7 @@ export class CidAdapter extends EventEmitter {
             });
             this.port.on('close', () => {
                 logger.warn('[Adapter] Port closed');
-                this._updateStatus({ isOpen: false });
+                this._updateStatus({ isOpen: false, portPath: undefined });
             });
 
             logger.info(`[Adapter} Port opened successfully: ${path}`);
