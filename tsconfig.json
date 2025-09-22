@@ -4,7 +4,7 @@
         "target": "ES2022",
         "lib": ["ES2023"],
         "module": "commonjs",
-        // "moduleResolution": "bundler",
+        "moduleResolution": "node",
         "outDir": "dist/main",
         "rootDir": "src/main",
         "sourceMap": true,
