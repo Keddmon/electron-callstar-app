@@ -1,15 +1,32 @@
 {
     "compilerOptions": {
-        "target": "ES2020",
-        "module": "CommonJS",
-        "rootDir": "src/main",
+        /* Build Options */
+        "target": "ES2022",
+        "lib": ["ES2023"],
+        "module": "commonjs",
+        // "moduleResolution": "bundler",
         "outDir": "dist/main",
-        "moduleResolution": "Node",
-        "strict": true,
-        "esModuleInterop": true,
-        "resolveJsonModule": true,
+        "rootDir": "src/main",
         "sourceMap": true,
-        "types": ["node", "electron"]
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+
+        /* Strict Type-Checking Options */
+        "strict": true,
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "strictBindCallApply": true,
+        "strictPropertyInitialization": true,
+        "noImplicitThis": true,
+        "alwaysStrict": true,
+
+        /* Linter Checks */
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true
     },
-    "include": ["src/main/**/*"]
+    "include": ["src/main/**/*"],
+    "exclude": ["node_modules"]
 }

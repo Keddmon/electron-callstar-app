@@ -1,41 +1,70 @@
 {
-    "name": "electron-callstar-app",
-    "version": "1.0.0",
-    "main": "dist/main/main.js",
-    "private": true,
-    "scripts": {
-        "dev": "concurrently -k \"tsc -p tsconfig.main.json -w\" \"cross-env NODE_ENV=development wait-on tcp:5173 file:dist/main/preload.js && electron .\"",
-        "build": "rimraf dist && tsc -p tsconfig.main.json",
-        "start": "electron .",
-        "pack": "npm run build && electron-builder"
+  "name": "electron-callstar-app",
+  "version": "1.0.0",
+  "main": "dist/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently \"npm:watch\" \"npm:dev:electron\"",
+    "dev:electron": "wait-on dist/main/main.js && cross-env NODE_ENV=development electron .",
+    "watch": "tsc -w",
+    "lint": "eslint . --ext .ts --report-unused-disable-directives --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "prebuild": "rimraf dist",
+    "build": "npm run lint && npm run typecheck && tsc",
+    "pack": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.bunyangin.app",
+    "productName": "Bunyangin App",
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
     },
-    "author": "Keddmon",
-    "license": "ISC",
-    "description": "",
-    "devDependencies": {
-        "@types/electron": "^1.6.12",
-        "@types/node": "^24.2.1",
-        "@typescript-eslint/eslint-plugin": "^8.39.0",
-        "@typescript-eslint/parser": "^8.39.0",
-        "concurrently": "^9.2.0",
-        "cross-env": "^10.0.0",
-        "electron": "^37.2.6",
-        "electron-builder": "^26.0.12",
-        "eslint": "^9.33.0",
-        "nodemon": "^3.1.10",
-        "rimraf": "^6.0.1",
-        "ts-node": "^10.9.2",
-        "typescript": "^5.9.2",
-        "wait-on": "^8.0.4"
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
     },
-    "dependencies": {
-        "axios": "^1.11.0",
-        "dayjs": "^1.11.13",
-        "dotenv": "^17.2.1",
-        "serialport": "^13.0.0",
-        "socket.io-client": "^4.8.1",
-        "winston": "^3.17.0",
-        "winston-daily-rotate-file": "^5.0.0",
-        "zod": "^4.0.17"
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
+  },
+  "author": "Keddmon",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/electron": "^1.6.12",
+    "@types/node": "^24.2.1",
+    "@typescript-eslint/eslint-plugin": "^8.39.0",
+    "@typescript-eslint/parser": "^8.39.0",
+    "concurrently": "^9.2.0",
+    "cross-env": "^10.0.0",
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.33.0",
+    "nodemon": "^3.1.10",
+    "rimraf": "^6.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2",
+    "wait-on": "^8.0.4"
+  },
+  "dependencies": {
+    "axios": "^1.11.0",
+    "dayjs": "^1.11.13",
+    "dotenv": "^17.2.1",
+    "serialport": "^13.0.0",
+    "socket.io-client": "^4.8.1",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0",
+    "zod": "^4.0.17"
+  }
 }
