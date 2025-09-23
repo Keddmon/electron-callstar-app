@@ -22,11 +22,11 @@ import { registerNetworkIpc } from './ipc/register-network.ipc';
 import { settingsStore } from './state/settings-store';
 
 /** Constant */
-// const DEV_URL = process.env.ELECTRON_DEV_SERVER_URL;
-// const START_URL = process.env.START_URL || '';
 
 const DEV_FRONTEND_URL = 'http://localhost:5173/#/';
-const PROD_FRONTEND_URL = 'https://app.example.com/#/'; // 운영 배포 도메인으로 교체
+const PROD_FRONTEND_URL = 'http://localhost:5173/#/';
+// const PROD_FRONTEND_URL = 'https://app.example.com/#/'; // 운영 배포 도메인으로 교체
+const TARGET_URL = process.env.LOAD_URL || PROD_FRONTEND_URL;
 
 const adapter = new CidAdapter();
 let mainWindow: BrowserWindow | null = null;
@@ -111,7 +111,8 @@ async function createWindow() {
   mainWindow.webContents.on('did-navigate-in-page', (_e, url) => console.log('[app] in-page:', url));
 
   if (app.isPackaged) {
-    await mainWindow.loadURL(PROD_FRONTEND_URL);
+    // await mainWindow.loadURL(PROD_FRONTEND_URL);
+    await mainWindow.loadURL(TARGET_URL);
   } else {
     await mainWindow.loadURL(DEV_FRONTEND_URL);
     mainWindow.webContents.openDevTools({ mode: 'detach' });

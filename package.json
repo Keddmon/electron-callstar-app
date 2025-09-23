@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "prebuild": "rimraf dist",
     "build": "npm run lint && npm run typecheck && tsc",
-    "pack": "npm run build && electron-builder"
+    "pack": "npm run build && electron-builder",
+    "pack:local": "npm run build && cross-env LOAD_URL=http://localhost:5173 electron-builder"
   },
   "build": {
     "appId": "com.bunyangin.app",
