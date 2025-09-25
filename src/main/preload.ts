@@ -171,6 +171,23 @@ try {
   console.error('[preload] failed', e);
 }
 
+try {
+  contextBridge.exposeInMainWorld('nav', {
+    back: () => ipcRenderer.invoke('nav:back'),
+    forward: () => ipcRenderer.invoke('nav:forward'),
+    getState: () => ipcRenderer.invoke('nav:state'),
+    onState: (handler: (s: { canGoBack: boolean; canGoForward: boolean; url: string }) => void) => {
+      if (typeof handler !== 'function') return () => { };
+      const wrapped = (_: Electron.IpcRendererEvent, state: any) => handler(state);
+      ipcRenderer.on('nav:state', wrapped);
+      return () => ipcRenderer.removeListener('nav:state', wrapped);
+    },
+  });
+  console.log('[preload] exposed window.nav');
+} catch (e) {
+  console.error('[preload] nav expose faield', e);
+}
+
 // declare global {
 //     interface Window {
 //         cid: {
