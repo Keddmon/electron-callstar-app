@@ -13,7 +13,8 @@
     "prebuild": "rimraf dist",
     "build": "npm run lint && npm run typecheck && tsc",
     "pack": "npm run build && electron-builder",
-    "pack:local": "npm run build && cross-env LOAD_URL=http://localhost:5173 electron-builder"
+    "pack:local": "npm run build && cross-env LOAD_URL=http://localhost:5173 electron-builder",
+    "rebuild": "electron-rebuild -f -w pcap"
   },
   "build": {
     "appId": "com.bunyangin.app",
@@ -59,9 +60,12 @@
   },
   "dependencies": {
     "axios": "^1.11.0",
+    "cap": "^0.2.1",
     "dayjs": "^1.11.13",
     "dotenv": "^17.2.1",
+    "pcap": "^3.1.0",
     "serialport": "^13.0.0",
+    "sip-parser": "^1.5.1",
     "socket.io-client": "^4.8.1",
     "typescript-eslint": "^8.44.0",
     "winston": "^3.17.0",

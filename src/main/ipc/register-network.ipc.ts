@@ -1,5 +1,5 @@
 import { IpcMain, ipcMain } from 'electron';
-import { IPC } from './channels';
+import { IPC } from '../constants/ipc.constant';
 import { listInterfaces, getArpTable } from '../network/network-info';
 
 export function registerNetworkIpc(ipcm: IpcMain = ipcMain) {

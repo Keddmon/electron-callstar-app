@@ -15,15 +15,6 @@ const logFormat = winston.format.printf(({ level, message, timestamp, stack }) =
 	return `${timestamp} ${level}: ${stack || message}`;
 });
 
-/**
- * Winston 로거 인스턴스
- * --
- * - 개발 환경에서는 `debug` 레벨까지 콘솔에 출력
- * - 운영 환경에서는 `info` 레벨까지 콘솔에 출력
- * - 모든 로그(`debug` 포함)는 파일로 기록
- * - 로그 파일은 일자별로 생성되며, 14일이 지나면 자동 삭제
- * - 처리되지 않은 예외는 별도 파일에 기록
- */
 const logger = winston.createLogger({
 	format: winston.format.combine(
 		winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),

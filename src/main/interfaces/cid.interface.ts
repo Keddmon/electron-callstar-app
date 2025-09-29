@@ -1,18 +1,13 @@
-/**
- * CID 인터페이스 정의
- * --
- */
-/** 패킷 */
-export interface ParsedPacket {
-  channel: string;
-  opcode: string;
-  payload: string;
-  raw: string;
-  receivedAt: number;
-};
-
-/** CID 어댑터 상태 */
-export interface CidAdapterStatus {
+import { EventEmitter } from 'events';
+export interface CidStatus {
   isOpen: boolean;
   portPath?: string;
-};
+  device?: string;
+}
+
+export interface CidAdapter extends EventEmitter {
+  open(options?: any): Promise<void> | void;
+  close(): void;
+  getStatus(): CidStatus;
+  listPorts?(): Promise<any[]>;
+}

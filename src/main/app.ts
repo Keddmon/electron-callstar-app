@@ -7,40 +7,75 @@ import * as path from 'path';
 import * as fs from 'fs';
 import logger from './logs/logger';
 
-/** 어댑터 */
-import { CidAdapter } from './cid/cid.adapter';
+import { CidAdapterFactory } from './cid/cid.factory';
+import type { CidAdapter } from './interfaces/cid.interface';
 
-/** 서비스 */
-// import { AutoReconnectService } from './reconnect/auto-reconnect.service';
-
-/** IPC */
 import { registerCidIpc } from './ipc/register-cid.ipc';
 import { registerSettingsIpc } from './ipc/register-settings.ipc';
 import { registerNetworkIpc } from './ipc/register-network.ipc';
-
-/** 상태 */
-import { settingsStore } from './state/settings-store';
 import { registerNavIpc } from './ipc/register-nav.ipc';
 
-/** Constant */
+import { settingsStore } from './state/settings-store';
 
 const DEV_FRONTEND_URL = 'http://localhost:5173/#/';
 const PROD_FRONTEND_URL = 'http://localhost:5173/#/';
-// const PROD_FRONTEND_URL = 'https://app.example.com/#/'; // 운영 배포 도메인으로 교체
 const TARGET_URL = process.env.LOAD_URL || PROD_FRONTEND_URL;
 
-const adapter = new CidAdapter();
+let adapter: CidAdapter | null = null;
 let mainWindow: BrowserWindow | null = null;
 
+// function getAdapter() { return adapter; }
+// function getMainWindow() { return mainWindow; }
+
 /** 서비스 초기화 */
-function initializeServices() {
-  // const reconnectService = new AutoReconnectService(adapter);
-  // 다른 서비스가 있다면 여기서 초기화
+async function initializeServices() {
+  const s = settingsStore.get();
+
+  try {
+    const deviceType = s.cid?.deviceType ?? 'callstar';
+
+    if (deviceType === 'switch') {
+      const capture = s.cid?.lanCardIndex !== undefined && s.cid?.lanCardIndex !== null
+        ? String(s.cid.lanCardIndex)
+        : s.sip?.captureIp ?? '';
+
+      const filter = s.sip?.filter;
+
+      adapter = CidAdapterFactory.create({
+        type: 'switch',
+        sipCaptureIp: capture,
+        sipFilter: filter,
+      });
+
+      try {
+        await adapter.open();
+      } catch (e) {
+        logger.warn('[app] switch adapter open failed (continuing): ', e);
+      }
+    } else {
+      adapter = CidAdapterFactory.create({
+        type: 'callstar',
+        callstarPath: s.cid?.lastPortPath,
+      });
+
+      if (s.cid?.lastPortPath) {
+        try {
+          await adapter.open(s.cid.lastPortPath);
+        } catch (e) {
+          logger.warn('[app] callstar adapter open failed (continuing): ', e);
+        }
+      }
+    }
+
+    logger.info('[app] adapter initialized: ', adapter ? 'present' : 'none');
+  } catch (e) {
+    logger.error('[app] initializeService failed: ', e);
+  }
 }
 
 /** handler 등록 */
 function registerIpcHandlers() {
-  registerCidIpc(adapter, () => mainWindow);
+  registerCidIpc(() => adapter, () => mainWindow);
   registerSettingsIpc();
   registerNetworkIpc();
   registerNavIpc(() => mainWindow);
@@ -208,7 +243,8 @@ export async function createApp() {
   await settingsStore.init();
 
   registerIpcHandlers();
-  initializeServices();
+
+  await initializeServices();
   registerAppLifecycleEvents();
 
   await createWindow();

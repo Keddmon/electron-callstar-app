@@ -1,22 +1,28 @@
 import { app } from 'electron';
-import * as path from 'path';
+import path from 'path';
 import { promises as fs } from 'fs';
-import logger from '../logs/logger';
+import { logger } from '../logs';
 
 export type Settings = {
   cid: {
+    deviceType?: 'callstar' | 'switch';
     lastPortPath?: string;
-    baudRate?: number;          // 기본 19200
-    autoReconnect?: boolean;    // 자동 재연결 사용 여부
+    autoReconnect?: boolean;
+    switchIp?: string;
+    lanCardIndex?: number;
+  };
+  sip: {
+    captureIp?: string;
+    filter?: string;
   };
   ipPhone: {
-    phoneNumber?: string;       // 대표 전화번호(화면 표시/저장용)
-    ipAddress?: string;         // IP전화기 IP
-    macAddress?: string;        // 선택
-    autoDetect?: boolean;       // 자동 탐지 시도 여부(옵션)
+    phoneNumber?: string;
+    ipAddress?: string;
+    macAddress?: string;
+    autoDetect?: boolean;
   };
   app: {
-    startOnLogin?: boolean;     // 필요시 사용
+    startOnLogin?: boolean
   };
   window?: {
     width?: number;
@@ -27,10 +33,21 @@ export type Settings = {
 };
 
 const DEFAULTS: Settings = {
-  cid: { baudRate: 19200, autoReconnect: true },
-  ipPhone: { autoDetect: false },
-  app: { startOnLogin: false },
-  window: { width: 1200, height: 800 },
+  cid: {
+    deviceType: 'callstar',
+    autoReconnect: true,
+  },
+  sip: {},
+  ipPhone: {
+    autoDetect: false,
+  },
+  app: {
+    startOnLogin: false,
+  },
+  window: {
+    width: 1200,
+    height: 800
+  },
 };
 
 class SettingsStore {
@@ -53,34 +70,27 @@ class SettingsStore {
       const parsed = JSON.parse(raw);
       this.cache = { ...DEFAULTS, ...parsed };
     } catch (e) {
-      logger.error('[settings] load failed, using defaults:', e);
+      logger.warn(`[Settings] load failed, using defaults: `, e);
       this.cache = { ...DEFAULTS };
       await this.save();
     }
   }
 
   private async save() {
-    if (this.saving) {
-      await this.saving;
-    }
-
-    const savePromise = (async () => {
+    if (this.saving) await this.saving;
+    this.saving = (async () => {
       try {
         await fs.mkdir(path.dirname(this.filePath), { recursive: true });
         await fs.writeFile(this.filePath, JSON.stringify(this.cache, null, 2), 'utf-8');
       } catch (e) {
-        logger.error('[settings] save failed:', e);
+        logger.error(`[Settings] save failed: `, e);
       }
     })();
-
-    this.saving = savePromise;
-    await savePromise;
+    await this.saving;
     this.saving = null;
   }
 
-  get(): Settings {
-    return JSON.parse(JSON.stringify(this.cache));
-  }
+  get(): Settings { return JSON.parse(JSON.stringify(this.cache)); }
 
   async set(next: Settings) {
     this.cache = { ...DEFAULTS, ...next };
@@ -93,6 +103,7 @@ class SettingsStore {
       ...this.cache,
       ...p,
       cid: { ...this.cache.cid, ...(p.cid ?? {}) },
+      sip: { ...this.cache.sip, ...(p.sip ?? {}) },
       ipPhone: { ...this.cache.ipPhone, ...(p.ipPhone ?? {}) },
       app: { ...this.cache.app, ...(p.app ?? {}) },
       window: { ...this.cache.window, ...(p.window ?? {}) },
