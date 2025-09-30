@@ -15,7 +15,10 @@
     "pack": "npm run build && electron-builder",
     "pack:local": "npm run build && cross-env LOAD_URL=http://localhost:5173 electron-builder",
     "rebuild": "electron-rebuild -f -w cap",
-    "postinstall": "electron-rebuild -f -w cap"
+    "postinstall": "electron-rebuild -f -w cap",
+    "build:main": "tsc -p tsconfig.json",
+    "dev:headless": "wait-on dist/main/main.js && cross-env ELECTRON_ENABLE_LOGGING=1 electron dist/main/headless-switch.js",
+    "list:nic": "cross-env LIST=1 npm run dev:headless"
   },
   "build": {
     "appId": "com.bunyangin.app",
