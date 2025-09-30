@@ -8,6 +8,7 @@ import { BAUD_RATE, DATA_BITS, STOP_BITS, OPCODE } from '../constants/callstar.c
 import { CidAdapter, CidStatus } from '../interfaces/cid.interface';
 import type { CidEvent } from '../types/cid';
 
+// Callstar CID 기기 추출
 const LIKELY_CID_IDENTIFIERS = ['cp210x', 'silicon labs'];
 
 export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
@@ -138,27 +139,21 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
         }
         break;
       }
-
       case OPCODE.DEVICE_INFO:
         cidData = { type: 'device-info', payload: p.payload }
         break;
-
       case OPCODE.DIAL_OUT:
         cidData = { type: 'dial-out', payload: p.payload }
         break;
-
       case OPCODE.DIAL_COMPLETE:
         cidData = { type: 'dial-complete' }
         break;
-
       case OPCODE.FORCE_END:
         cidData = { type: 'force-end' }
         break;
-
       case OPCODE.OFF_HOOK:
         cidData = { type: 'off-hook' }
         break;
-
       case OPCODE.ON_HOOK:
         cidData = { type: 'on-hook' }
         break;
@@ -176,6 +171,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
    */
   async listPorts() {
     const ports = await SerialPort.list();
+    console.log(ports);
 
     return ports
       .map((p, idx) => {

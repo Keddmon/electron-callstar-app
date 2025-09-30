@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { CidPortInfo } from '../types/cid';
 export interface CidStatus {
   isOpen: boolean;
   portPath?: string;
@@ -9,5 +10,5 @@ export interface CidAdapter extends EventEmitter {
   open(options?: any): Promise<void> | void;
   close(): void;
   getStatus(): CidStatus;
-  listPorts?(): Promise<any[]>;
+  listPorts?(): Promise<CidPortInfo[]>;
 }

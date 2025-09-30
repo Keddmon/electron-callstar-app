@@ -64,7 +64,6 @@
     "wait-on": "^8.0.4"
   },
   "dependencies": {
-    "axios": "^1.11.0",
     "cap": "^0.2.1",
     "dayjs": "^1.11.13",
     "dotenv": "^17.2.1",
@@ -72,7 +71,6 @@
     "socket.io-client": "^4.8.1",
     "typescript-eslint": "^8.44.0",
     "winston": "^3.17.0",
-    "winston-daily-rotate-file": "^5.0.0",
-    "zod": "^4.0.17"
+    "winston-daily-rotate-file": "^5.0.0"
   }
 }
