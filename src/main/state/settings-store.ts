@@ -1,37 +1,18 @@
+/**
+ * CID 설정 저장 및 불러오기 (로컬 저장: settings.json)
+ * --
+ */
+
 import { app } from 'electron';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { logger } from '../logs';
+import { Settings } from '../types/settings';
 
-export type Settings = {
-  cid: {
-    deviceType?: 'callstar' | 'switch';
-    lastPortPath?: string;
-    autoReconnect?: boolean;
-    switchIp?: string;
-    lanCardIndex?: number;
-  };
-  sip: {
-    captureIp?: string;
-    filter?: string;
-  };
-  ipPhone: {
-    phoneNumber?: string;
-    ipAddress?: string;
-    macAddress?: string;
-    autoDetect?: boolean;
-  };
-  app: {
-    startOnLogin?: boolean
-  };
-  window?: {
-    width?: number;
-    height?: number;
-    x?: number;
-    y?: number;
-  };
-};
-
+/**
+ * 기본 설정
+ * --
+ */
 const DEFAULTS: Settings = {
   cid: {
     deviceType: 'callstar',
@@ -59,10 +40,18 @@ class SettingsStore {
     this.filePath = path.join(app.getPath('userData'), filename);
   }
 
+  /**
+   * 초기화 및 불러오기
+   * --
+   */
   async init() {
     await this.load();
   }
 
+  /**
+   * 설정 불러오기
+   * --
+   */
   private async load() {
     try {
       await fs.access(this.filePath);
@@ -76,6 +65,10 @@ class SettingsStore {
     }
   }
 
+  /**
+   * 설정 저장
+   * --
+   */
   private async save() {
     if (this.saving) await this.saving;
     this.saving = (async () => {
@@ -90,14 +83,26 @@ class SettingsStore {
     this.saving = null;
   }
 
+  /**
+   * 설정 정보 불러오기
+   * --
+   */
   get(): Settings { return JSON.parse(JSON.stringify(this.cache)); }
 
+  /**
+   * 설정하기
+   * --
+   */
   async set(next: Settings) {
     this.cache = { ...DEFAULTS, ...next };
     await this.save();
     return this.get();
   }
 
+  /**
+   * 설정 새로고침
+   * --
+   */
   async patch(p: Partial<Settings>) {
     this.cache = {
       ...this.cache,

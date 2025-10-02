@@ -16,7 +16,8 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
   private fb = new FrameBuffer();
   private status: CidStatus = {
     isOpen: false,
-    portPath: undefined,
+    path: undefined,
+    deviceType: undefined,
   };
 
   /**
@@ -25,7 +26,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
    * --
    */
   async open(path: string) {
-    logger.info(`[CallstarCidAdapter] 포트 여는 중...`, path);
+    logger.info(`[Callstar][Adapter] 포트 여는 중...`, path);
     await this.close();
 
     try {
@@ -50,15 +51,15 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
 
       this.port.on('close', () => {
         logger.warn('[Callstar][Adapter] Port closed');
-        this._updateStatus({ isOpen: false, portPath: undefined });
+        this._updateStatus({ isOpen: false, path: undefined, deviceType: undefined });
       });
 
       logger.info(`[Callstar][Adapter] Port opened: ${path}`);
-      this._updateStatus({ isOpen: true, portPath: path });
+      this._updateStatus({ isOpen: true, path: path, deviceType: 'callstar' });
     } catch (e) {
       logger.error(`[Callstar][Adapter] Port open Error: `, e);
       this.port = undefined;
-      this._updateStatus({ isOpen: false, portPath: undefined });
+      this._updateStatus({ isOpen: false, path: undefined, deviceType: undefined });
       throw e;
     }
   }
@@ -70,12 +71,14 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
   async close() {
     try {
       if (this.port?.isOpen) {
-        logger.info(`[Callstar][Adapter] Closing port: ${this.status.portPath}`);
-        await new Promise<void>((resolve) => this.port!.close(() => resolve));
+        logger.info(`[Callstar][Adapter] Closing port: ${this.status.path}`);
+        await new Promise<void>((resolve, reject) => {
+          this.port!.close(err => err ? reject(err) : resolve());
+        });
       }
       this.port = undefined;
       this.fb.clear();
-      this._updateStatus({ isOpen: false, portPath: undefined });
+      this._updateStatus({ isOpen: false, path: undefined, deviceType: undefined });
     } catch (e) {
       logger.error(`[Callstar][Adapter] Port closing Error: `, e);
       throw e;
@@ -84,7 +87,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
 
   /**
    * 상태 확인
-   * @returns portPath, isOpen
+   * @returns path, isOpen
    * --
    */
   getStatus(): CidStatus {
@@ -128,6 +131,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
     switch (p.opcode) {
       case OPCODE.INCOMING: {
         const payload = p.payload;
+        logger.debug('[Callstar][Adapter] payload: ', payload)
         if (payload === OPCODE.PRIVATE) {
           cidData = { type: 'masked', payload: 'PRIVATE' };
         } else if (payload === OPCODE.PUBLIC) {
@@ -160,7 +164,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
     }
 
     if (cidData) {
-      logger.debug(`[Callstar][Adapter][emitCid]`, cidData);
+      logger.debug(`[Callstar][Adapter]`, cidData);
       this.emit('cid', cidData);
     }
   }
@@ -171,15 +175,13 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
    */
   async listPorts() {
     const ports = await SerialPort.list();
-    console.log(ports);
 
     return ports
-      .map((p, idx) => {
+      .map((p) => {
         const text = `${p.manufacturer ?? ''} ${p.pnpId ?? ''}`.toLowerCase();
         const isLikelyCid = LIKELY_CID_IDENTIFIERS.some((id) => text.includes(id));
 
         return {
-          id: String(idx),
           path: p.path,
           friendlyName: (p as any).friendlyName,
           isLikelyCid,
@@ -189,8 +191,8 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
   }
 
   /** TEST */
-  incoming(phoneNumber: string) {
-    const packet = makePacket(OPCODE.INCOMING, phoneNumber);
+  incoming(payload: string) {
+    const packet = makePacket(OPCODE.INCOMING, payload);
     const chunk = Buffer.from(packet, 'utf-8');
     this.onData(chunk);
   }

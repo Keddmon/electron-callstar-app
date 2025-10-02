@@ -15,6 +15,9 @@ const IPC = {
     CLOSE: 'cid:close',
     STATUS: 'cid:status',
     LIST_PORTS: 'cid:listPorts',
+
+
+
     DEVICE_INFO: 'cid:deviceInfo',
     INCOMING: 'cid:incoming',
     DIAL_OUT: 'cid:dialOut',
@@ -36,69 +39,78 @@ const IPC = {
 } as const;
 
 type CidEvent =
-  | { type: 'incoming'; phoneNumber: string }
-  | { type: 'masked'; reason: 'PRIVATE' | 'PUBLIC' | 'UNKNOWN' }
-  | { type: 'dial-out'; phoneNumber: string }
-  | { type: 'dial-complete' }
-  | { type: 'force-end' }
-  | { type: 'on-hook' }
-  | { type: 'off-hook' }
-  | { type: 'unknown' };
+  | { type: 'incoming'; payload: string | null, callId?: string; channel?: string }
+  | { type: 'masked'; payload: 'PRIVATE' | 'PUBLIC' | 'UNKNOWN'; callId?: string, channel?: string }
+  | { type: 'answered'; callId?: string, channel?: string }
+  | { type: 'end'; reason?: 'bye' | 'cancel' | 'failed' | 'timeout'; callId?: string; channel?: string }
 
-export interface Settings {
-  cid: {
-    lastPortPath?: string;
-    baudRate?: number;
-    autoReconnect?: boolean;
-    lanCardIndex?: number | string;
-    switchIp?: string;
-    deviceType?: 'callstar' | 'switch';
-  };
-  ipPhone: {
-    phoneNumber?: string;
-    ipAddress?: string;
-    macAddress?: string;
-    autoDetect?: boolean;
-  };
-  app: {
-    startOnLogin?: boolean;
-  };
-  window?: {
-    width?: number;
-    height?: number;
-    x?: number;
-    y?: number;
-  };
-}
+  | { type: 'device-info'; payload: string | null }
+  | { type: 'dial-out'; payload: string; callId?: string }
+  | { type: 'dial-complete'; callId?: string }
+  | { type: 'force-end'; callId?: string }
+  | { type: 'on-hook'; callId?: string; }
+  | { type: 'off-hook'; callId?: string; };
 
-export interface NetIf {
-  name: string;
-  address: string;
-  netmask: string;
-  family: string;
-  mac: string;
-  internal: boolean;
-}
+// type Settings = {
+//   cid: {
+//     deviceType?: 'callstar' | 'switch';
+//     lastPortPath?: string;
+//     autoReconnect?: boolean;
+//     switchIp?: string;
+//     lanCardIndex?: number;
+//   };
+//   sip: {
+//     captureIp?: string;
+//     filter?: string;
+//   };
+//   ipPhone: {
+//     phoneNumber?: string;
+//     ipAddress?: string;
+//     macAddress?: string;
+//     autoDetect?: boolean;
+//   };
+//   app: {
+//     startOnLogin?: boolean
+//   };
+//   window?: {
+//     width?: number;
+//     height?: number;
+//     x?: number;
+//     y?: number;
+//   };
+// };
 
-export interface ArpEntry {
-  ip: string;
-  mac: string;
-  type?: string;
-}
+// export interface NetIf {
+//   name: string;
+//   address: string;
+//   netmask: string;
+//   family: string;
+//   mac: string;
+//   internal: boolean;
+// }
 
+// export interface ArpEntry {
+//   ip: string;
+//   mac: string;
+//   type?: string;
+// }
+
+
+
+/** ===== CID ===== */
 try {
   contextBridge.exposeInMainWorld('cid', {
-    open: (path: string) => ipcRenderer.invoke(IPC.CID.OPEN, { path }),
+    open: (path?: string) => ipcRenderer.invoke(IPC.CID.OPEN, { path }),
     close: () => ipcRenderer.invoke(IPC.CID.CLOSE),
     status: () => ipcRenderer.invoke(IPC.CID.STATUS),
     listPorts: () => ipcRenderer.invoke(IPC.CID.LIST_PORTS),
-    deviceInfo: () => ipcRenderer.invoke(IPC.CID.DEVICE_INFO),
-    dialOut: (phoneNumber: string) => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { phoneNumber }),
-    forceEnd: () => ipcRenderer.invoke(IPC.CID.FORCE_END),
-    incoming: (phoneNumber: string) => ipcRenderer.invoke(IPC.CID.INCOMING, { phoneNumber }),
-    dialComplete: () => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE),
-    onHook: () => ipcRenderer.invoke(IPC.CID.ON_HOOK),
-    offHook: () => ipcRenderer.invoke(IPC.CID.OFF_HOOK),
+    // deviceInfo: () => ipcRenderer.invoke(IPC.CID.DEVICE_INFO),
+    // dialOut: (payload: string) => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { payload }),
+    // forceEnd: () => ipcRenderer.invoke(IPC.CID.FORCE_END),
+    incoming: (payload: string) => ipcRenderer.invoke(IPC.CID.INCOMING, { payload }),
+    // dialComplete: () => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE),
+    // onHook: () => ipcRenderer.invoke(IPC.CID.ON_HOOK),
+    // offHook: () => ipcRenderer.invoke(IPC.CID.OFF_HOOK),
 
     onEvent: (handler: (evt: CidEvent) => void) => {
       if (typeof handler !== 'function') {
@@ -110,7 +122,6 @@ try {
       return () => ipcRenderer.removeListener(IPC.CID.EVENT, wrapped);
     },
 
-    // new: status updates (adapter status changes)
     onStatus: (handler: (status: any) => void) => {
       if (typeof handler !== 'function') {
         console.error('[preload] onStatus handler must be a function.');
@@ -126,6 +137,7 @@ try {
   console.error('[preload] failed', e);
 }
 
+/** ===== SETTINGS ===== */
 try {
   contextBridge.exposeInMainWorld('settings', {
     get: () => ipcRenderer.invoke(IPC.SETTINGS.GET),
@@ -137,6 +149,7 @@ try {
   console.error('[preload] failed', e);
 }
 
+/** ===== NET ===== */
 try {
   contextBridge.exposeInMainWorld('net', {
     listInterfaces: () => ipcRenderer.invoke(IPC.NET.LIST_INTERFACES),
@@ -147,6 +160,7 @@ try {
   console.error('[preload] failed', e);
 }
 
+/** ===== NAVIGATION ===== */
 try {
   contextBridge.exposeInMainWorld('nav', {
     back: () => ipcRenderer.invoke('nav:back'),

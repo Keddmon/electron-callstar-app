@@ -2,36 +2,49 @@
  * BrowserWindow 생성/URL 로드/IPC 등록
  * --
  */
+
+/** ===== Libraries ===== */
 import { app, BrowserWindow, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import logger from './logs/logger';
 
+/** ===== Factory ===== */
 import { CidAdapterFactory } from './cid/cid.factory';
+
+/** ===== Interfaces ===== */
 import type { CidAdapter } from './interfaces/cid.interface';
 
-import { registerCidIpc } from './ipc/register-cid.ipc';
-import { registerSettingsIpc } from './ipc/register-settings.ipc';
-import { registerNetworkIpc } from './ipc/register-network.ipc';
-import { registerNavIpc } from './ipc/register-nav.ipc';
-
+/** ===== Store ===== */
 import { settingsStore } from './state/settings-store';
 
+/** ===== IPC ===== */
+import {
+  registerCaptureIpc,
+  registerCidIpc,
+  registerNavIpc,
+  registerNetworkIpc,
+  registerSettingsIpc,
+} from './ipc';
+
+/** ===== Constants ===== */
 const DEV_FRONTEND_URL = 'http://localhost:5173/#/';
 const PROD_FRONTEND_URL = 'http://localhost:5173/#/';
 const TARGET_URL = process.env.LOAD_URL || PROD_FRONTEND_URL;
 
+/** ===== Variables ===== */
 let adapter: CidAdapter | null = null;
 let mainWindow: BrowserWindow | null = null;
 
 // function getAdapter() { return adapter; }
 // function getMainWindow() { return mainWindow; }
 
-/** 서비스 초기화 */
+/** ===== 서비스 초기화 ===== */
 async function initializeServices() {
   const s = settingsStore.get();
 
   try {
+    // 기본 `callstar`
     const deviceType = s.cid?.deviceType ?? 'callstar';
 
     if (deviceType === 'switch') {
@@ -73,21 +86,25 @@ async function initializeServices() {
   }
 }
 
-/** handler 등록 */
+/** ===== IPC 등록 ===== */
 function registerIpcHandlers() {
+  registerCaptureIpc();
   registerCidIpc(() => adapter, () => mainWindow);
   registerSettingsIpc();
   registerNetworkIpc();
   registerNavIpc(() => mainWindow);
 }
 
-/** 애플리케이션 라이프 사이클 설정 */
+/** ===== 프로그램 라이프 사이클 ===== */
 function registerAppLifecycleEvents() {
+
+  // 프로그램 종료
   app.on('window-all-closed', () => {
     logger.info('All windows closed, quitting application.');
     if (process.platform !== 'darwin') app.quit();
   });
 
+  // 프로그램 실행
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -95,6 +112,7 @@ function registerAppLifecycleEvents() {
   });
 }
 
+/** ===== 프로그램 뒤로가기/앞으로가기 ===== */
 function bindNavControls(win: BrowserWindow) {
   const wc = win.webContents;
 
@@ -140,7 +158,7 @@ function bindNavControls(win: BrowserWindow) {
   emitNavState();
 }
 
-/** Window(화면) 생성 */
+/** ===== Window(화면) 생성 ===== */
 async function createWindow() {
   logger.info('[app] Create Window: Creating a new window...');
 
@@ -184,11 +202,13 @@ async function createWindow() {
   mainWindow.on('resize', saveWindowGeometry);
   mainWindow.on('move', saveWindowGeometry);
 
+  // 프로그램 로드 끝날 시
   mainWindow.webContents.on('did-finish-load', () => {
     logger.debug(`[app] did-finish-load`);
     if (mainWindow && !mainWindow.isVisible()) mainWindow.show();
   });
 
+  // 프로그램 로드 실패 시
   mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
     logger.error(`[app] did-fail-load: `, { code, desc, url });
   });
@@ -224,7 +244,7 @@ async function createWindow() {
   });
 }
 
-/** App 생성 */
+/** ===== 앱 생성(메인) ===== */
 export async function createApp() {
   if (!app.isReady()) {
     logger.info('[app] App not ready, waiting...');
@@ -235,17 +255,21 @@ export async function createApp() {
   // 전역 메뉴 제거
   if (process.platform === 'darwin') {
     Menu.setApplicationMenu(null);
-  } else {
-    Menu.setApplicationMenu(null);
   }
 
   // 설정 스토어 초기화
   await settingsStore.init();
 
+  // IPC 등록
   registerIpcHandlers();
 
+  // Settings 초기화
   await initializeServices();
+
+  // 프로그램 실행
   registerAppLifecycleEvents();
 
+
+  // Window(화면) 생성
   await createWindow();
 }

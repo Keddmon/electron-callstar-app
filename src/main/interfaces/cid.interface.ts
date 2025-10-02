@@ -1,14 +1,17 @@
 import { EventEmitter } from 'events';
-import { CidPortInfo } from '../types/cid';
+import { CidPortInfo, CallstarOpenOpts, SwitchOpenOpts } from '../types/cid';
 export interface CidStatus {
   isOpen: boolean;
-  portPath?: string;
-  device?: string;
+  path?: string;
+  deviceType?: 'callstar' | 'switch' | undefined;
 }
 
 export interface CidAdapter extends EventEmitter {
-  open(options?: any): Promise<void> | void;
+  open(opts?: any): Promise<void> | void;
   close(): void;
   getStatus(): CidStatus;
   listPorts?(): Promise<CidPortInfo[]>;
+
+  // TEST
+  incoming(payload: string): void;
 }
