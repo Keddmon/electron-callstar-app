@@ -6,7 +6,7 @@ export type NetIf = {
   name: string;
   address: string;
   netmask: string;
-  family: string;        // IPv4/IPv6
+  family: string; // IPv4/IPv6
   mac: string;
   internal: boolean;
 };
@@ -46,18 +46,25 @@ export function getArpTable(): Promise<ArpEntry[]> {
         logger.error('[net] arp failed', err);
         return resolve([]);
       }
-      const lines = (stdout || '').split('\n').map(s => s.trim()).filter(Boolean);
+      const lines = (stdout || '')
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
       const arr: ArpEntry[] = [];
       for (const line of lines) {
         // windows 예)  192.168.0.10       00-15-65-xx-xx-xx     동적
         // unix   예)  ? (192.168.0.10) at 00:15:65:xx:xx:xx on en0 ifscope [ethernet]
         if (isWin) {
-          const m = line.match(/^(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F:-]{11,})\s+(.+)$/);
+          const m = line.match(
+            /^(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F:-]{11,})\s+(.+)$/
+          );
           if (m) {
             arr.push({ ip: m[1], mac: m[2].replace(/-/g, ':'), type: m[3] });
           }
         } else {
-          const m = line.match(/\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-fA-F:]{11,})/);
+          const m = line.match(
+            /\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-fA-F:]{11,})/
+          );
           if (m) {
             arr.push({ ip: m[1], mac: m[2] });
           }

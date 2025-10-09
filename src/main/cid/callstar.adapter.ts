@@ -1,10 +1,13 @@
 import EventEmitter from 'events';
 import { SerialPort } from 'serialport';
-
 import { logger } from '../logs';
 import { FrameBuffer, parsePacket, makePacket } from '../utils';
-
-import { BAUD_RATE, DATA_BITS, STOP_BITS, OPCODE } from '../constants/callstar.constant';
+import {
+  BAUD_RATE,
+  DATA_BITS,
+  STOP_BITS,
+  OPCODE,
+} from '../constants/callstar.constant';
 import { CidAdapter, CidStatus } from '../interfaces/cid.interface';
 import type { CidEvent } from '../types/cid';
 
@@ -16,13 +19,12 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
   private fb = new FrameBuffer();
   private status: CidStatus = {
     isOpen: false,
-    path: undefined,
+    callstarPort: undefined,
     deviceType: undefined,
   };
 
   /**
    * 포트 열기
-   * @param path 포트 경로
    * --
    */
   async open(path: string) {
@@ -39,7 +41,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
         autoOpen: false,
       });
       await new Promise<void>((resolve, reject) => {
-        this.port!.open(err => (err ? reject(err) : resolve()));
+        this.port!.open((err) => (err ? reject(err) : resolve()));
       });
 
       this.port.on('data', (chunk: Buffer) => this.onData(chunk));
@@ -51,15 +53,27 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
 
       this.port.on('close', () => {
         logger.warn('[Callstar][Adapter] Port closed');
-        this._updateStatus({ isOpen: false, path: undefined, deviceType: undefined });
+        this._updateStatus({
+          isOpen: false,
+          callstarPort: undefined,
+          deviceType: undefined,
+        });
       });
 
       logger.info(`[Callstar][Adapter] Port opened: ${path}`);
-      this._updateStatus({ isOpen: true, path: path, deviceType: 'callstar' });
+      this._updateStatus({
+        isOpen: true,
+        callstarPort: path,
+        deviceType: 'callstar',
+      });
     } catch (e) {
       logger.error(`[Callstar][Adapter] Port open Error: `, e);
       this.port = undefined;
-      this._updateStatus({ isOpen: false, path: undefined, deviceType: undefined });
+      this._updateStatus({
+        isOpen: false,
+        callstarPort: undefined,
+        deviceType: undefined,
+      });
       throw e;
     }
   }
@@ -71,14 +85,20 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
   async close() {
     try {
       if (this.port?.isOpen) {
-        logger.info(`[Callstar][Adapter] Closing port: ${this.status.path}`);
+        logger.info(
+          `[Callstar][Adapter] Closing port: ${this.status.callstarPort}`
+        );
         await new Promise<void>((resolve, reject) => {
-          this.port!.close(err => err ? reject(err) : resolve());
+          this.port!.close((err) => (err ? reject(err) : resolve()));
         });
       }
       this.port = undefined;
       this.fb.clear();
-      this._updateStatus({ isOpen: false, path: undefined, deviceType: undefined });
+      this._updateStatus({
+        isOpen: false,
+        callstarPort: undefined,
+        deviceType: undefined,
+      });
     } catch (e) {
       logger.error(`[Callstar][Adapter] Port closing Error: `, e);
       throw e;
@@ -87,7 +107,6 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
 
   /**
    * 상태 확인
-   * @returns path, isOpen
    * --
    */
   getStatus(): CidStatus {
@@ -96,7 +115,6 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
 
   /**
    * 현재 CID 상태 업데이트
-   * @param status CID 상태
    * --
    */
   private _updateStatus(status: CidStatus) {
@@ -106,7 +124,6 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
 
   /**
    * 수신 데이터 처리
-   * @param chunk CID 패킷
    * --
    */
   private onData(chunk: Buffer) {
@@ -122,7 +139,6 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
 
   /**
    * 패킷 분석 후 Emit
-   * @param p CID 패킷
    * --
    */
   private emitCid(p: any) {
@@ -131,7 +147,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
     switch (p.opcode) {
       case OPCODE.INCOMING: {
         const payload = p.payload;
-        logger.debug('[Callstar][Adapter] payload: ', payload)
+        logger.debug('[Callstar][Adapter] payload: ', payload);
         if (payload === OPCODE.PRIVATE) {
           cidData = { type: 'masked', payload: 'PRIVATE' };
         } else if (payload === OPCODE.PUBLIC) {
@@ -144,22 +160,22 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
         break;
       }
       case OPCODE.DEVICE_INFO:
-        cidData = { type: 'device-info', payload: p.payload }
+        cidData = { type: 'device-info', payload: p.payload };
         break;
       case OPCODE.DIAL_OUT:
-        cidData = { type: 'dial-out', payload: p.payload }
+        cidData = { type: 'dial-out', payload: p.payload };
         break;
       case OPCODE.DIAL_COMPLETE:
-        cidData = { type: 'dial-complete' }
+        cidData = { type: 'dial-complete' };
         break;
       case OPCODE.FORCE_END:
-        cidData = { type: 'force-end' }
+        cidData = { type: 'force-end' };
         break;
       case OPCODE.OFF_HOOK:
-        cidData = { type: 'off-hook' }
+        cidData = { type: 'off-hook' };
         break;
       case OPCODE.ON_HOOK:
-        cidData = { type: 'on-hook' }
+        cidData = { type: 'on-hook' };
         break;
     }
 
@@ -171,15 +187,17 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
 
   /**
    * 포트 목록
-   * @returns port list
+   * --
    */
-  async listPorts() {
+  static async listPorts() {
     const ports = await SerialPort.list();
 
     return ports
       .map((p) => {
         const text = `${p.manufacturer ?? ''} ${p.pnpId ?? ''}`.toLowerCase();
-        const isLikelyCid = LIKELY_CID_IDENTIFIERS.some((id) => text.includes(id));
+        const isLikelyCid = LIKELY_CID_IDENTIFIERS.some((id) =>
+          text.includes(id)
+        );
 
         return {
           path: p.path,

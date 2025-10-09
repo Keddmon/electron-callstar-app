@@ -1,13 +1,4 @@
-// src/main/preload.ts
-import { contextBridge, ipcRenderer } from 'electron';
-
-// interface ParsedPacket {
-//   channel: string;
-//   opcode: string;
-//   payload: string;
-//   raw: string;
-//   receivedAt: number;
-// };
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
 const IPC = {
   CID: {
@@ -15,17 +6,11 @@ const IPC = {
     CLOSE: 'cid:close',
     STATUS: 'cid:status',
     LIST_PORTS: 'cid:listPorts',
-
-
-
-    DEVICE_INFO: 'cid:deviceInfo',
-    INCOMING: 'cid:incoming',
-    DIAL_OUT: 'cid:dialOut',
-    DIAL_COMPLETE: 'cid:dialComplete',
-    FORCE_END: 'cid:forceEnd',
-    ON_HOOK: 'cid:onHook',
-    OFF_HOOK: 'cid:offHook',
     EVENT: 'cid:event',
+    INCOMING: 'cid:incoming',
+  },
+  CAPTURE: {
+    LIST_DEVICES: 'capture:listDevices',
   },
   SETTINGS: {
     GET: 'settings:get',
@@ -36,144 +21,155 @@ const IPC = {
     LIST_INTERFACES: 'net:listInterfaces',
     ARP_TABLE: 'net:arpTable',
   },
-} as const;
+  NAV: {
+    STATE: 'nav:state',
+  },
+};
 
 type CidEvent =
-  | { type: 'incoming'; payload: string | null, callId?: string; channel?: string }
-  | { type: 'masked'; payload: 'PRIVATE' | 'PUBLIC' | 'UNKNOWN'; callId?: string, channel?: string }
-  | { type: 'answered'; callId?: string, channel?: string }
-  | { type: 'end'; reason?: 'bye' | 'cancel' | 'failed' | 'timeout'; callId?: string; channel?: string }
+  | {
+      type: 'incoming';
+      payload: string | null;
+      callId?: string;
+      channel?: string;
+      extension?: string;
+    }
+  | {
+      type: 'masked';
+      payload: 'PRIVATE' | 'PUBLIC' | 'UNKNOWN';
+      callId?: string;
+      channel?: string;
+      extension?: string;
+    }
+  | { type: 'answered'; callId?: string; channel?: string; extension?: string }
+  | {
+      type: 'end';
+      reason?: 'bye' | 'cancel' | 'failed' | 'timeout';
+      callId?: string;
+      channel?: string;
+      extension?: string;
+    }
+  | { type: 'device-info'; payload: string | null; extension?: string }
+  | { type: 'dial-out'; payload: string; callId?: string; extension?: string }
+  | { type: 'dial-complete'; callId?: string; extension?: string }
+  | { type: 'force-end'; callId?: string; extension?: string }
+  | { type: 'on-hook'; callId?: string; extension?: string }
+  | { type: 'off-hook'; callId?: string; extension?: string };
 
-  | { type: 'device-info'; payload: string | null }
-  | { type: 'dial-out'; payload: string; callId?: string }
-  | { type: 'dial-complete'; callId?: string }
-  | { type: 'force-end'; callId?: string }
-  | { type: 'on-hook'; callId?: string; }
-  | { type: 'off-hook'; callId?: string; };
+interface CidStatus {
+  isOpen: boolean;
+  path?: string;
+  deviceType?: 'callstar' | 'switch' | undefined;
+}
 
-// type Settings = {
-//   cid: {
-//     deviceType?: 'callstar' | 'switch';
-//     lastPortPath?: string;
-//     autoReconnect?: boolean;
-//     switchIp?: string;
-//     lanCardIndex?: number;
-//   };
-//   sip: {
-//     captureIp?: string;
-//     filter?: string;
-//   };
-//   ipPhone: {
-//     phoneNumber?: string;
-//     ipAddress?: string;
-//     macAddress?: string;
-//     autoDetect?: boolean;
-//   };
-//   app: {
-//     startOnLogin?: boolean
-//   };
-//   window?: {
-//     width?: number;
-//     height?: number;
-//     x?: number;
-//     y?: number;
-//   };
-// };
+interface IpPhone {
+  ipAddress: string;
+  extension: string;
+  description?: string;
+  macAddress?: string;
+}
+interface Settings {
+  /**
+   * CID 장치 관련 설정
+   */
+  cid: {
+    deviceType: 'callstar' | 'switch';
+    autoReconnect?: boolean;
+    // Callstar 장치 설정
+    callstarPort?: string;
+    // Switch 장치 설정
+    switchCaptureDevice?: string;
+  };
 
-// export interface NetIf {
-//   name: string;
-//   address: string;
-//   netmask: string;
-//   family: string;
-//   mac: string;
-//   internal: boolean;
-// }
+  /**
+   * Switch CID 모드에서 사용할 IP 전화기 목록
+   */
+  ipPhones: IpPhone[];
 
-// export interface ArpEntry {
-//   ip: string;
-//   mac: string;
-//   type?: string;
-// }
+  /**
+   * 애플리케이션 관련 설정
+   */
+  app: {
+    startOnLogin?: boolean;
+  };
 
+  /**
+   * 윈도우 상태 저장
+   */
+  window?: {
+    width?: number;
+    height?: number;
+    x?: number;
+    y?: number;
+  };
+}
 
-
-/** ===== CID ===== */
-try {
-  contextBridge.exposeInMainWorld('cid', {
-    open: (path?: string) => ipcRenderer.invoke(IPC.CID.OPEN, { path }),
+// 필요한 함수들만 명시적으로 노출하는 API 객체
+const api = {
+  /**
+   * CID 어댑터 제어 및 이벤트 수신
+   */
+  cid: {
+    open: (args?: { path: string }) => ipcRenderer.invoke(IPC.CID.OPEN, args),
     close: () => ipcRenderer.invoke(IPC.CID.CLOSE),
-    status: () => ipcRenderer.invoke(IPC.CID.STATUS),
+    getStatus: () => ipcRenderer.invoke(IPC.CID.STATUS),
     listPorts: () => ipcRenderer.invoke(IPC.CID.LIST_PORTS),
-    // deviceInfo: () => ipcRenderer.invoke(IPC.CID.DEVICE_INFO),
-    // dialOut: (payload: string) => ipcRenderer.invoke(IPC.CID.DIAL_OUT, { payload }),
-    // forceEnd: () => ipcRenderer.invoke(IPC.CID.FORCE_END),
-    incoming: (payload: string) => ipcRenderer.invoke(IPC.CID.INCOMING, { payload }),
-    // dialComplete: () => ipcRenderer.invoke(IPC.CID.DIAL_COMPLETE),
-    // onHook: () => ipcRenderer.invoke(IPC.CID.ON_HOOK),
-    // offHook: () => ipcRenderer.invoke(IPC.CID.OFF_HOOK),
+    // TEST (추후 삭제 요망)
+    incoming: (payload: string) =>
+      ipcRenderer.invoke(IPC.CID.INCOMING, { payload }),
 
-    onEvent: (handler: (evt: CidEvent) => void) => {
-      if (typeof handler !== 'function') {
-        console.error('[preload] onEvent handler must be a function.');
-        return () => { };
-      }
-      const wrapped = (_e: Electron.IpcRendererEvent, payload: CidEvent) => handler(payload);
-      ipcRenderer.on(IPC.CID.EVENT, wrapped);
-      return () => ipcRenderer.removeListener(IPC.CID.EVENT, wrapped);
+    // Main -> Renderer 이벤트 수신
+    onEvent: (callback: (evt: CidEvent) => void) => {
+      const handler = (_e: IpcRendererEvent, evt: CidEvent) => callback(evt);
+      ipcRenderer.on(IPC.CID.EVENT, handler);
+      // 클린업 함수 반환 (React useEffect 등에서 사용)
+      return () => ipcRenderer.removeListener(IPC.CID.EVENT, handler);
     },
-
-    onStatus: (handler: (status: any) => void) => {
-      if (typeof handler !== 'function') {
-        console.error('[preload] onStatus handler must be a function.');
-        return () => { };
-      }
-      const wrapped = (_e: Electron.IpcRendererEvent, payload: any) => handler(payload);
-      ipcRenderer.on(IPC.CID.STATUS, wrapped);
-      return () => ipcRenderer.removeListener(IPC.CID.STATUS, wrapped);
+    onStatus: (callback: (status: CidStatus) => void) => {
+      const handler = (_e: IpcRendererEvent, status: CidStatus) =>
+        callback(status);
+      ipcRenderer.on(IPC.CID.STATUS, handler);
+      return () => ipcRenderer.removeListener(IPC.CID.STATUS, handler);
     },
-  });
-  console.log('[preload] exposed window.cid');
-} catch (e) {
-  console.error('[preload] failed', e);
-}
+  },
 
-/** ===== SETTINGS ===== */
-try {
-  contextBridge.exposeInMainWorld('settings', {
-    get: () => ipcRenderer.invoke(IPC.SETTINGS.GET),
-    set: (settings: any) => ipcRenderer.invoke(IPC.SETTINGS.SET, settings),
-    patch: (partialSettings: any) => ipcRenderer.invoke(IPC.SETTINGS.PATCH, partialSettings),
-  });
-  console.log('[preload] exposed window.settings');
-} catch (e) {
-  console.error('[preload] failed', e);
-}
+  /**
+   * 네트워크 장치 캡처 관련
+   */
+  capture: {
+    listDevices: () => ipcRenderer.invoke(IPC.CAPTURE.LIST_DEVICES),
+  },
 
-/** ===== NET ===== */
-try {
-  contextBridge.exposeInMainWorld('net', {
-    listInterfaces: () => ipcRenderer.invoke(IPC.NET.LIST_INTERFACES),
-    getArpTable: () => ipcRenderer.invoke(IPC.NET.ARP_TABLE),
-  });
-  console.log('[preload] exposed window.net');
-} catch (e) {
-  console.error('[preload] failed', e);
-}
+  /**
+   * 설정(Settings) 관리
+   */
+  settings: {
+    get: (): Promise<Settings> => ipcRenderer.invoke(IPC.SETTINGS.GET),
+    patch: (partialSettings: Partial<Settings>) =>
+      ipcRenderer.invoke(IPC.SETTINGS.PATCH, partialSettings),
+  },
 
-/** ===== NAVIGATION ===== */
-try {
-  contextBridge.exposeInMainWorld('nav', {
-    back: () => ipcRenderer.invoke('nav:back'),
-    forward: () => ipcRenderer.invoke('nav:forward'),
-    getState: () => ipcRenderer.invoke('nav:state'),
-    onState: (handler: (s: { canGoBack: boolean; canGoForward: boolean; url: string }) => void) => {
-      if (typeof handler !== 'function') return () => { };
-      const wrapped = (_: Electron.IpcRendererEvent, state: any) => handler(state);
-      ipcRenderer.on('nav:state', wrapped);
-      return () => ipcRenderer.removeListener('nav:state', wrapped);
+  /**
+   * 내비게이션 제어
+   */
+  nav: {
+    onState: (
+      callback: (state: {
+        canGoBack: boolean;
+        canGoForward: boolean;
+        url: string;
+      }) => void
+    ) => {
+      const handler = (_e: IpcRendererEvent, state: any) => callback(state);
+      ipcRenderer.on(IPC.NAV.STATE, handler);
+      return () => ipcRenderer.removeListener(IPC.NAV.STATE, handler);
     },
-  });
-  console.log('[preload] exposed window.nav');
-} catch (e) {
-  console.error('[preload] nav expose failed', e);
+  },
+};
+
+// `contextBridge`를 통해 `window.api` 객체로 안전하게 노출
+try {
+  contextBridge.exposeInMainWorld('api', api);
+} catch (error) {
+  console.error('Failed to expose API via contextBridge:', error);
 }

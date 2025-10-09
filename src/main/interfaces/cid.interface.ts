@@ -1,8 +1,9 @@
 import { EventEmitter } from 'events';
-import { CidPortInfo, CallstarOpenOpts, SwitchOpenOpts } from '../types/cid';
+import { CidPortInfo } from '../types/cid';
 export interface CidStatus {
   isOpen: boolean;
-  path?: string;
+  callstarPort?: string;
+  deviceName?: string;
   deviceType?: 'callstar' | 'switch' | undefined;
 }
 

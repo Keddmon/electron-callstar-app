@@ -7,7 +7,8 @@ import { app } from 'electron';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { logger } from '../logs';
-import { Settings } from '../types/settings';
+import { Settings } from '../types/settings.d copy2';
+import { deepMerge } from '../utils';
 
 /**
  * 기본 설정
@@ -16,18 +17,14 @@ import { Settings } from '../types/settings';
 const DEFAULTS: Settings = {
   cid: {
     deviceType: 'callstar',
-    autoReconnect: true,
   },
-  sip: {},
-  ipPhone: {
-    autoDetect: false,
-  },
+  ipPhones: [],
   app: {
     startOnLogin: false,
   },
   window: {
     width: 1200,
-    height: 800
+    height: 800,
   },
 };
 
@@ -57,10 +54,10 @@ class SettingsStore {
       await fs.access(this.filePath);
       const raw = await fs.readFile(this.filePath, 'utf-8');
       const parsed = JSON.parse(raw);
-      this.cache = { ...DEFAULTS, ...parsed };
+      this.cache = deepMerge(DEFAULTS, parsed);
     } catch (e) {
       logger.warn(`[Settings] load failed, using defaults: `, e);
-      this.cache = { ...DEFAULTS };
+      this.cache = JSON.parse(JSON.stringify(DEFAULTS));
       await this.save();
     }
   }
@@ -74,7 +71,11 @@ class SettingsStore {
     this.saving = (async () => {
       try {
         await fs.mkdir(path.dirname(this.filePath), { recursive: true });
-        await fs.writeFile(this.filePath, JSON.stringify(this.cache, null, 2), 'utf-8');
+        await fs.writeFile(
+          this.filePath,
+          JSON.stringify(this.cache, null, 2),
+          'utf-8'
+        );
       } catch (e) {
         logger.error(`[Settings] save failed: `, e);
       }
@@ -87,14 +88,16 @@ class SettingsStore {
    * 설정 정보 불러오기
    * --
    */
-  get(): Settings { return JSON.parse(JSON.stringify(this.cache)); }
+  get(): Settings {
+    return JSON.parse(JSON.stringify(this.cache));
+  }
 
   /**
    * 설정하기
    * --
    */
   async set(next: Settings) {
-    this.cache = { ...DEFAULTS, ...next };
+    this.cache = deepMerge(DEFAULTS, next);
     await this.save();
     return this.get();
   }
@@ -104,15 +107,7 @@ class SettingsStore {
    * --
    */
   async patch(p: Partial<Settings>) {
-    this.cache = {
-      ...this.cache,
-      ...p,
-      cid: { ...this.cache.cid, ...(p.cid ?? {}) },
-      sip: { ...this.cache.sip, ...(p.sip ?? {}) },
-      ipPhone: { ...this.cache.ipPhone, ...(p.ipPhone ?? {}) },
-      app: { ...this.cache.app, ...(p.app ?? {}) },
-      window: { ...this.cache.window, ...(p.window ?? {}) },
-    };
+    this.cache = deepMerge(this.cache, p);
     await this.save();
     return this.get();
   }
