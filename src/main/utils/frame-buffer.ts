@@ -11,7 +11,7 @@ export class FrameBuffer {
   drainFrame(): string[] {
     const frames: string[] = [];
 
-    for (; ;) {
+    for (;;) {
       const start = this.buffer.indexOf(STX);
       const end = this.buffer.indexOf(ETX, start + 1);
 

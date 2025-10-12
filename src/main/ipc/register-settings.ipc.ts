@@ -1,8 +1,11 @@
+/** PACKAGE */
 import { ipcMain } from 'electron';
+/** UTILS */
 import { initializeCidService } from '../app';
+/** STORE */
 import { settingsStore } from '../state/settings-store';
 
-export function registerSettingsIpc() {
+const registerSettingsIpc = () => {
   ipcMain.handle('settings:get', async () => settingsStore.get());
 
   ipcMain.handle('settings:set', async (_e, settings) => {
@@ -16,4 +19,6 @@ export function registerSettingsIpc() {
     await initializeCidService(); // 설정 변경 후 CID 서비스 재시작
     return result;
   });
-}
+};
+
+export default registerSettingsIpc;

@@ -1,8 +1,11 @@
-function isObject(item: any): item is Record<string, any> {
-  return (item && typeof item === 'object' && !Array.isArray(item));
-}
+const isObject = (item: any): item is Record<string, any> => {
+  return item && typeof item === 'object' && !Array.isArray(item);
+};
 
-function deepMerge<T extends object, U extends object>(target: T, source: U): T & U {
+export const deepMerge = <T extends object, U extends object>(
+  target: T,
+  source: U
+): T & U => {
   const output = { ...target } as T & U;
 
   if (isObject(target) && isObject(source)) {
@@ -12,7 +15,10 @@ function deepMerge<T extends object, U extends object>(target: T, source: U): T 
         const targetValue = (target as Record<string, any>)[key];
 
         if (isObject(targetValue) && isObject(sourceValue)) {
-          (output as Record<string, any>)[key] = deepMerge(targetValue, sourceValue);
+          (output as Record<string, any>)[key] = deepMerge(
+            targetValue,
+            sourceValue
+          );
         } else {
           (output as Record<string, any>)[key] = sourceValue;
         }
@@ -21,8 +27,4 @@ function deepMerge<T extends object, U extends object>(target: T, source: U): T 
   }
 
   return output;
-}
-
-export {
-  deepMerge,
 };

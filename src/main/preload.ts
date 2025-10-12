@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
+/**
+ * NOTE
+ * - build 시, preload.ts에서 import 에러 발생
+ * → constants, interfaces, types 직접 작성
+ */
 const IPC = {
   CID: {
     OPEN: 'cid:open',
@@ -16,10 +21,6 @@ const IPC = {
     SET: 'settings:set',
     PATCH: 'settings:patch',
   },
-  NET: {
-    LIST_INTERFACES: 'net:listInterfaces',
-    ARP_TABLE: 'net:arpTable',
-  },
   NAV: {
     STATE: 'nav:state',
   },
@@ -28,7 +29,7 @@ const IPC = {
 type CidEvent =
   | {
       type: 'incoming';
-      payload: string | null;
+      payload: string | undefined;
       callId?: string;
       channel?: string;
       extension?: string;
@@ -57,8 +58,9 @@ type CidEvent =
 
 interface CidStatus {
   isOpen: boolean;
-  path?: string;
-  deviceType?: 'callstar' | 'switch' | undefined;
+  cidType?: 'callstar' | 'switch' | undefined;
+  callstarPort?: string;
+  captureDevice?: string;
 }
 
 interface IpPhone {
@@ -67,34 +69,14 @@ interface IpPhone {
   description?: string;
   macAddress?: string;
 }
-interface Settings {
-  /**
-   * CID 장치 관련 설정
-   */
+
+export interface Settings {
   cid: {
-    deviceType: 'callstar' | 'switch';
-    autoReconnect?: boolean;
-    // Callstar 장치 설정
+    cidType: 'callstar' | 'switch' | undefined;
     callstarPort?: string;
-    // Switch 장치 설정
-    switchCaptureDevice?: string;
+    captureDevice?: string;
   };
-
-  /**
-   * Switch CID 모드에서 사용할 IP 전화기 목록
-   */
   ipPhones: IpPhone[];
-
-  /**
-   * 애플리케이션 관련 설정
-   */
-  app: {
-    startOnLogin?: boolean;
-  };
-
-  /**
-   * 윈도우 상태 저장
-   */
   window?: {
     width?: number;
     height?: number;
@@ -103,22 +85,18 @@ interface Settings {
   };
 }
 
-// 필요한 함수들만 명시적으로 노출하는 API 객체
 const api = {
-  /**
-   * CID 어댑터 제어 및 이벤트 수신
-   */
   cid: {
     open: (args?: { path: string }) => ipcRenderer.invoke(IPC.CID.OPEN, args),
     close: () => ipcRenderer.invoke(IPC.CID.CLOSE),
     getStatus: () => ipcRenderer.invoke(IPC.CID.STATUS),
-    switchCid: (args: { type: string, path?: string, captureDevice?: string }) => ipcRenderer.invoke(IPC.CID.SWITCH_CID, args),
+    switchCid: (args: {
+      deviceType: string;
+      callstarPath?: string;
+      captureDevice?: string;
+    }) => ipcRenderer.invoke(IPC.CID.SWITCH_CID, args),
     listPorts: () => ipcRenderer.invoke(IPC.CID.LIST_PORTS),
     listSwitches: () => ipcRenderer.invoke(IPC.CID.LIST_SWITCHES),
-    // TEST (추후 삭제 요망)
-    incoming: (payload: string) =>
-      ipcRenderer.invoke(IPC.CID.INCOMING, { payload }),
-
     // Main -> Renderer 이벤트 수신
     onEvent: (callback: (evt: CidEvent) => void) => {
       const handler = (_e: IpcRendererEvent, evt: CidEvent) => callback(evt);
@@ -132,20 +110,15 @@ const api = {
       ipcRenderer.on(IPC.CID.STATUS, handler);
       return () => ipcRenderer.removeListener(IPC.CID.STATUS, handler);
     },
+    // TEST (추후 삭제 요망)
+    incoming: (payload: string) =>
+      ipcRenderer.invoke(IPC.CID.INCOMING, { payload }),
   },
-
-  /**
-   * 설정(Settings) 관리
-   */
   settings: {
     get: (): Promise<Settings> => ipcRenderer.invoke(IPC.SETTINGS.GET),
     patch: (partialSettings: Partial<Settings>) =>
       ipcRenderer.invoke(IPC.SETTINGS.PATCH, partialSettings),
   },
-
-  /**
-   * 내비게이션 제어
-   */
   nav: {
     onState: (
       callback: (state: {
@@ -161,7 +134,6 @@ const api = {
   },
 };
 
-// `contextBridge`를 통해 `window.api` 객체로 안전하게 노출
 try {
   contextBridge.exposeInMainWorld('api', api);
 } catch (error) {

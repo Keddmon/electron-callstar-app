@@ -1,21 +1,13 @@
-/**
- * BrowserWindow 생성/URL 로드/IPC 등록
- * --
- */
-
-/** ===== Libraries ===== */
+/** ===== PACKAGE ===== */
 import { app, BrowserWindow, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import logger from './logs/logger';
 
-/** ===== Adapter ===== */
+/** ===== FACTORY ===== */
 import { CidAdapterFactory } from './cid/cid.factory';
 
-/** ===== Interfaces ===== */
-import type { CidAdapter } from './interfaces/cid.interface';
-
-/** ===== Store ===== */
+/** ===== STORE ===== */
 import { settingsStore } from './state/settings-store';
 
 /** ===== IPC ===== */
@@ -23,24 +15,24 @@ import {
   registerCaptureIpc,
   registerCidIpc,
   registerNavIpc,
-  registerNetworkIpc,
   registerPortIpc,
   registerSettingsIpc,
 } from './ipc';
-import { CidEvent } from './types/cid';
+
+/** ===== CONSTANTS & INTERFACES & TYPES===== */
 import { IPC } from './constants/ipc.constant';
+import type { CidAdapter } from './interfaces/cid.interface';
+import { CidEvent } from './types/cid';
 
-/** ===== Constants ===== */
 const DEV_FRONTEND_URL = 'http://localhost:5173/#/';
-const PROD_FRONTEND_URL = 'http://localhost:5173/#/';
-// const TARGET_URL = process.env.LOAD_URL || PROD_FRONTEND_URL;
+const PROD_FRONTEND_URL = 'https://bunyangin.com/';
 
-/** ===== Variables ===== */
+/** ===== VARIABLES ===== */
 let adapter: CidAdapter | null = null;
 let mainWindow: BrowserWindow | null = null;
 let reinitLock: Promise<void> | null = null;
 
-/** ===== Frontend Bridge ===== */
+/** ===== FRONTEND BRIDGE ===== */
 const emitToFrontend = (channel: string, payload: any) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   try {
@@ -51,8 +43,20 @@ const emitToFrontend = (channel: string, payload: any) => {
 };
 
 const emitStatus = () => {
-  const s = adapter?.getStatus?.();
-  if (s) emitToFrontend(IPC.CID.STATUS, s);
+  const status = adapter?.getStatus?.();
+  if (status) emitToFrontend(IPC.CID.STATUS, status);
+};
+
+/** ===== 패키지 LOCAL - PROD 구분 */
+const getPackagedFrontendUrl = (): string | undefined => {
+  try {
+    const pkgPath = path.join(app.getAppPath(), 'package.json');
+    const meta = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    const v = meta?.frontendUrl;
+    return typeof v === 'string' && v.length > 0 ? v : undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 /** ===== 서비스 초기화 ===== */
@@ -63,11 +67,11 @@ export async function initializeCidService() {
   // 1) 기존 어댑터 종료
   reinitLock = (async () => {
     if (adapter) {
-      logger.info('[app] 기존 CID 어댑터 종료 중 ...');
+      logger.info('[App] 기존 CID 어댑터 종료 중 ...');
       try {
         await adapter.close();
       } catch (e: any) {
-        logger.warn('[app] 어댑터 종료 실패(무시): ', e);
+        logger.warn('[APp] 어댑터 종료 실패(무시): ', e ?? e.message);
       } finally {
         adapter = null;
       }
@@ -76,18 +80,28 @@ export async function initializeCidService() {
     // 2) 설정 로드 및 타입/필수값 가드
     const settings = settingsStore.get();
     const cid = settings?.cid ?? {};
-    const { deviceType, callstarPort, switchCaptureDevice } = cid;
+    const { cidType, callstarPort, captureDevice } = cid;
 
-    logger.info(`[app] 설정 기반 어댑터 생성 시도: ${deviceType}`);
+    logger.info(`[app] 설정 기반 어댑터 생성 시도: ${cidType}`);
 
-    if (deviceType === 'callstar' && (!callstarPort || callstarPort.trim() === '')) {
-      logger.warn('[app] callstar 선택됨: 포트(callstarPort) 미지정 → 사용자 선택 대기');
-      emitToFrontend(IPC.CID.STATUS, { isOpen: false, deviceType: 'callstar' });
+    if (
+      cidType === 'callstar' &&
+      (!callstarPort || callstarPort.trim() === '')
+    ) {
+      logger.warn(
+        '[app] callstar 선택됨: 포트(callstarPort) 미지정 → 사용자 선택 대기'
+      );
+      emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType: 'callstar' });
       return;
     }
-    if (deviceType === 'switch' && (!switchCaptureDevice || switchCaptureDevice.trim() === '')) {
-      logger.warn('[app] switch 선택됨: 캡처 장치(switchCaptureDevice) 미지정 → 사용자 선택 대기');
-      emitToFrontend(IPC.CID.STATUS, { isOpen: false, deviceType: 'switch' });
+    if (
+      cidType === 'switch' &&
+      (!captureDevice || captureDevice.trim() === '')
+    ) {
+      logger.warn(
+        '[app] switch 선택됨: 캡처 장치(captureDevice) 미지정 → 사용자 선택 대기'
+      );
+      emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType: 'switch' });
       return;
     }
 
@@ -95,7 +109,7 @@ export async function initializeCidService() {
     adapter = CidAdapterFactory.fromSettings(cid);
     if (!adapter) {
       logger.warn('[app] 어댑터 생성 실패(설정 불충분/알 수 없는 타입).');
-      emitToFrontend(IPC.CID.STATUS, { isOpen: false, deviceType });
+      emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType });
       return;
     }
 
@@ -110,7 +124,7 @@ export async function initializeCidService() {
     // 5) 어댑터 시작 (타입별 인자)
     try {
       logger.info('[app] CID 어댑터 시작 중...');
-      if (deviceType === 'callstar') {
+      if (cidType === 'callstar') {
         await adapter.open(callstarPort!);
       } else {
         await adapter.open();
@@ -120,7 +134,7 @@ export async function initializeCidService() {
     } catch (e) {
       logger.error('[app] CID 어댑터 시작 실패:', e);
       adapter = null;
-      emitToFrontend(IPC.CID.STATUS, { isOpen: false, deviceType });
+      emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType });
     }
   })();
 
@@ -130,95 +144,10 @@ export async function initializeCidService() {
     reinitLock = null;
   }
 
-  logger.info('[app] CID 서비스 초기화 완료. 현재 어댑터: ', adapter ? adapter : '없음');
-  // // 1. 기존 어댑터가 있으면 안전하게 종료
-  // if (adapter) {
-  //   logger.info('[app] 기존 CID 어댑터 종료 중...');
-  //   await adapter.close();
-  //   adapter = null;
-  // }
-
-  // // 2. 팩토리를 통해 설정에 맞는 새 어댑터 생성
-  // logger.info('[app] 설정 기반으로 새 CID 어댑터 생성 중...');
-  // const settings = settingsStore.get();
-  // const { deviceType, callstarPort, switchCaptureDevice } = settings.cid;
-
-  // adapter = CidAdapterFactory.createAdapterFromSettings();
-
-  // if (adapter) {
-  //   // 3. 어댑터 이벤트 리스너 설정 (CID 데이터를 Frontend로 전송)
-  //   adapter.on('cid', (event: CidEvent) => {
-  //     if (mainWindow && !mainWindow.isDestroyed()) {
-  //       logger.info('[app] CID 이벤트 발생, Frontend로 전송: ', event);
-  //       mainWindow.webContents.send('cid:event', event);
-  //     }
-  //   });
-
-  //   // 4. 어댑터 시작
-  //   try {
-  //     logger.info('[app] CID 어댑터 시작 중...');
-  //     if (callstarPort) {
-  //       await adapter.open(callstarPort);
-  //     } else {
-  //       await adapter.open();
-  //     }
-  //   } catch (e) {
-  //     logger.error('[app] CID 어댑터 시작 실패: ', e);
-  //     adapter = null; // 실패 시 null로 초기화
-  //   }
-  // } else {
-  //   logger.warn('[app] 생성할 CID 어댑터가 없습니다. (설정 확인 필요)');
-  // }
-
-  // logger.info(
-  //   '[app] CID 서비스 초기화 완료. 현재 어댑터: ',
-  //   adapter ? adapter.constructor.name : '없음'
-  // );
-
-  // const s = settingsStore.get();
-
-  // try {
-  //   // 기본 `callstar`
-  //   const deviceType = s.cid?.deviceType ?? 'callstar';
-
-  //   if (deviceType === 'switch') {
-  //     const captureDevice = s.cid.switchCaptureDevice;
-  //     // const filter = s.sip?.filter;
-
-  //     if (captureDevice && captureDevice.trim() !== '') {
-  //       adapter = CidAdapterFactory.create({
-  //         type: 'switch',
-  //         sipCaptureIp: captureDevice,
-  //       });
-  //       try {
-  //         await adapter.open();
-  //       } catch (e) {
-  //         logger.warn('[app] switch adapter open failed (continuing): ', e);
-  //       }
-  //     } else {
-  //       logger.warn(
-  //         '[app] Switch CID adapter cannot be initialized: `sip.captureIp` is not set in settings.'
-  //       );
-  //     }
-  //   } else {
-  //     adapter = CidAdapterFactory.create({
-  //       type: 'callstar',
-  //       callstarPath: s.cid?.callstarPort,
-  //     });
-
-  //     if (s.cid?.callstarPort) {
-  //       try {
-  //         await adapter.open(s.cid.callstarPort);
-  //       } catch (e) {
-  //         logger.warn('[app] callstar adapter open failed (continuing): ', e);
-  //       }
-  //     }
-  //   }
-
-  //   logger.info('[app] adapter initialized: ', adapter ? 'present' : 'none');
-  // } catch (e) {
-  //   logger.error('[app] initializeService failed: ', e);
-  // }
+  logger.info(
+    '[app] CID 서비스 초기화 완료. 현재 어댑터: ',
+    adapter ? adapter : '없음'
+  );
 }
 
 /** ===== IPC 등록 ===== */
@@ -229,13 +158,12 @@ function registerIpcHandlers() {
     () => mainWindow
   );
   registerSettingsIpc();
-  registerNetworkIpc();
   registerPortIpc();
   registerNavIpc(() => mainWindow);
 }
 
 /** ===== 프로그램 라이프 사이클 ===== */
-function registerAppLifecycleEvents() {
+const registerAppLifecycleEvents = () => {
   // 프로그램 종료
   app.on('window-all-closed', () => {
     logger.info('All windows closed, quitting application.');
@@ -248,10 +176,10 @@ function registerAppLifecycleEvents() {
       createWindow();
     }
   });
-}
+};
 
 /** ===== 프로그램 뒤로가기/앞으로가기 ===== */
-function bindNavControls(win: BrowserWindow) {
+const bindNavControls = (win: BrowserWindow) => {
   const wc = win.webContents;
 
   const emitNavState = () => {
@@ -294,10 +222,10 @@ function bindNavControls(win: BrowserWindow) {
 
   // 초기 상태 한번 쏘기 (초기 버튼 활성화 동기화용)
   emitNavState();
-}
+};
 
 /** ===== Window(화면) 생성 ===== */
-async function createWindow() {
+const createWindow = async () => {
   logger.info('[app] Create Window: Creating a new window...');
 
   const { window: windowSettings } = settingsStore.get();
@@ -376,8 +304,8 @@ async function createWindow() {
 
   // 패키지시 PROD면 개발자 도구 X, DEV면 개발자 도구 O
   if (app.isPackaged) {
-    await mainWindow.loadURL(PROD_FRONTEND_URL);
-    // await mainWindow.loadURL(TARGET_URL);
+    const packageUrl = getPackagedFrontendUrl();
+    await mainWindow.loadURL(packageUrl ?? PROD_FRONTEND_URL);
   } else {
     await mainWindow.loadURL(DEV_FRONTEND_URL);
     mainWindow.webContents.openDevTools({ mode: 'detach' });
@@ -386,10 +314,10 @@ async function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
-}
+};
 
 /** ===== 앱 생성(메인) ===== */
-export async function createApp() {
+export const createApp = async () => {
   if (!app.isReady()) {
     logger.info('[app] App not ready, waiting...');
     await app.whenReady();
@@ -414,4 +342,4 @@ export async function createApp() {
 
   // Settings 초기화
   await initializeCidService();
-}
+};

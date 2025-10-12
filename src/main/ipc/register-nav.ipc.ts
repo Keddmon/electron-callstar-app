@@ -1,6 +1,11 @@
-import { BrowserWindow, ipcMain } from "electron";
+/** PACKAGE */
+import { BrowserWindow, ipcMain } from 'electron';
 
-export const registerNavIpc = (getWindow: () => BrowserWindow | null) => {
+/**
+ * Electron 내에서 페이지 이동(뒤로가기, 앞으로가기) 설정
+ * --
+ */
+const registerNavIpc = (getWindow: () => BrowserWindow | null) => {
   ipcMain.handle('nav:back', () => {
     const win = getWindow();
     if (win && win.webContents.canGoBack()) win.webContents.goBack();
@@ -13,7 +18,7 @@ export const registerNavIpc = (getWindow: () => BrowserWindow | null) => {
 
   ipcMain.handle('nav:state', () => {
     const win = getWindow();
-    if (!win) return { canGoBack: false, canGoForward: false, url: ''};
+    if (!win) return { canGoBack: false, canGoForward: false, url: '' };
     const wc = win.webContents;
     return {
       canGoBack: wc.canGoBack(),
@@ -22,3 +27,5 @@ export const registerNavIpc = (getWindow: () => BrowserWindow | null) => {
     };
   });
 };
+
+export default registerNavIpc;

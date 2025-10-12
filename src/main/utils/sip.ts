@@ -1,4 +1,3 @@
-// src/main/utils/sip.ts
 import { parse as parseSip } from 'sip-parser';
 
 export const safeParseHeaders = (s: string): Record<string, string[]> => {
@@ -21,13 +20,14 @@ export const safeParseHeaders = (s: string): Record<string, string[]> => {
   }
 };
 
-export const one = (v?: string[] | string) => Array.isArray(v) ? v[0] : v;
+export const one = (v?: string[] | string) => (Array.isArray(v) ? v[0] : v);
 
 export const extractNumber = (v?: string | null) => {
   if (!v) return null;
-  let m = /<sip:([\+\d][\d\-]{4,})/i.exec(v)
-    || /tel:([\+\d][\d\-]{4,})/i.exec(v)
-    || /sip:([\d\-]{6,})/i.exec(v);
+  let m =
+    /<sip:([\+\d][\d\-]{4,})/i.exec(v) ||
+    /tel:([\+\d][\d\-]{4,})/i.exec(v) ||
+    /sip:([\d\-]{6,})/i.exec(v);
   return m ? m[1] : null;
 };
 

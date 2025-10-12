@@ -1,19 +1,24 @@
+/** PACKAGE */
 import { BrowserWindow, IpcMain, ipcMain } from 'electron';
+/** UTILS */
 import { logger } from '../logs';
-import type { CidAdapter } from '../interfaces/cid.interface';
-import { IPC } from '../constants/ipc.constant';
-import { settingsStore } from '../state/settings-store';
 import { initializeCidService } from '../app';
+/** ADAPTERS */
+import type { CidAdapter } from '../interfaces/cid.interface';
+/** STORE */
+import { settingsStore } from '../state/settings-store';
+/** CONSTANTS & INTERFACES & TYPES */
+import { IPC } from '../constants/ipc.constant';
 
 type CidPayload =
-  | { type: 'callstar'; path: string }
+  | { type: 'callstar'; callstarPort: string }
   | { type: 'switch'; captureDevice: string };
 
-export function registerCidIpc(
+const registerCidIpc = (
   getAdapter: () => CidAdapter | null,
   getWindow: () => BrowserWindow | null,
   ipcm: IpcMain = ipcMain
-) {
+) => {
   /**
    * Frontend로 이벤트 전송
    * --
@@ -58,7 +63,7 @@ export function registerCidIpc(
 
   attachAdapter(getAdapter());
 
-  /** ========== Frontend와 통신하는 함수(기능) ========== */
+  /** ===== Frontend와 통신하는 함수(기능) ===== */
   /**
    * CID OPEN
    * --
@@ -68,7 +73,7 @@ export function registerCidIpc(
     if (!adapter)
       return { data: null, error: 'CID 어댑터가 준비되지 않았습니다.' };
     try {
-      const param = args?.path ?? args;
+      const param = args?.callstarPort ?? args;
       if (typeof (adapter as any).open !== 'function') {
         return { data: null, error: '어댑터에 open()이 없습니다.' };
       }
@@ -88,7 +93,8 @@ export function registerCidIpc(
    */
   ipcm.handle(IPC.CID.CLOSE, async (): Promise<any> => {
     const adapter = getAdapter();
-    if (!adapter) return { data: null, error: 'CID 어댑터가 준비되지 않았습니다.' };
+    if (!adapter)
+      return { data: null, error: 'CID 어댑터가 준비되지 않았습니다.' };
     try {
       await (adapter as any).close?.();
       attachAdapter(null);
@@ -106,7 +112,8 @@ export function registerCidIpc(
    */
   ipcm.handle(IPC.CID.STATUS, async (): Promise<any> => {
     const adapter = getAdapter();
-    if (!adapter) return { data: null, error: 'CID 어댑터가 준비되지 않았습니다.' };
+    if (!adapter)
+      return { data: null, error: 'CID 어댑터가 준비되지 않았습니다.' };
     try {
       const status = (adapter as any).getStatus?.() ?? null;
       return { data: status, error: null };
@@ -122,24 +129,47 @@ export function registerCidIpc(
    */
   ipcm.handle(IPC.CID.SWITCH_CID, async (_e, payload: CidPayload) => {
     try {
-      if (!payload || !payload.type) return { data: null, error: '전환 payload가 비어 있습니다.' };
+      if (!payload || !payload.type)
+        return { data: null, error: '전환 payload가 비어 있습니다.' };
 
       if (payload.type === 'callstar') {
-        if (!payload.path || typeof payload.path !== 'string') {
-          return { data: null, error: 'callstar 전환에는 유효한 포트 경로(path)가 필요합니다.' };
+        if (!payload.callstarPort || typeof payload.callstarPort !== 'string') {
+          return {
+            data: null,
+            error:
+              'callstar 전환에는 유효한 포트 경로(callstarPort)가 필요합니다.',
+          };
         }
         await settingsStore.patch({
-          cid: { deviceType: 'callstar', callstarPort: payload.path, switchCaptureDevice: undefined },
+          cid: {
+            cidType: 'callstar',
+            callstarPort: payload.callstarPort,
+            captureDevice: undefined,
+          },
         });
       } else if (payload.type === 'switch') {
-        if (!payload.captureDevice || typeof payload.captureDevice !== 'string') {
-          return { data: null, error: 'switch 전환에는 유효한 캡처 장치 식별자(captureDevice)가 필요합니다.' };
+        if (
+          !payload.captureDevice ||
+          typeof payload.captureDevice !== 'string'
+        ) {
+          return {
+            data: null,
+            error:
+              'switch 전환에는 유효한 캡처 장치 식별자(captureDevice)가 필요합니다.',
+          };
         }
         await settingsStore.patch({
-          cid: { deviceType: 'switch', switchCaptureDevice: payload.captureDevice, callstarPort: undefined },
+          cid: {
+            cidType: 'switch',
+            captureDevice: payload.captureDevice,
+            callstarPort: undefined,
+          },
         });
       } else {
-        return { data: null, error: `알 수 없는 타입: ${(payload as any).type}` };
+        return {
+          data: null,
+          error: `알 수 없는 타입: ${(payload as any).type}`,
+        };
       }
 
       await initializeCidService();
@@ -178,4 +208,6 @@ export function registerCidIpc(
   process.on('SIGTERM', cleanup);
 
   logger.info('[CID][IPC] registered CID IPC handlers');
-}
+};
+
+export default registerCidIpc;

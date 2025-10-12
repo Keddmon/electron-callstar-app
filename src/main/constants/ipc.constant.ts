@@ -18,8 +18,7 @@ export const IPC = {
     SET: 'settings:set',
     PATCH: 'settings:patch',
   },
-  NET: {
-    LIST_INTERFACES: 'net:listInterfaces',
-    ARP_TABLE: 'net:arpTable',
+  NAV: {
+    STATE: 'nav:state',
   },
 } as const;

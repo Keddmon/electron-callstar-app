@@ -1,7 +1,10 @@
+/** PACKAGE */
 import EventEmitter from 'events';
 import { SerialPort } from 'serialport';
+/** UTILS */
 import { logger } from '../logs';
 import { FrameBuffer, parsePacket, makePacket } from '../utils';
+/** CONSTANTS & INTERFACES & TYPES */
 import {
   BAUD_RATE,
   DATA_BITS,
@@ -17,7 +20,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
   private status: CidStatus = {
     isOpen: false,
     callstarPort: undefined,
-    deviceType: undefined,
+    cidType: undefined,
   };
 
   // 레이스 가드
@@ -25,13 +28,15 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
   private closing = false;
 
   /**
-   * 포트 열기
+   * Callstar CID: 포트 열기
    * --
    */
   async open(path?: string) {
     const target = (path ?? this.status.callstarPort)?.trim();
     if (!target) {
-      throw new Error('[Callstar][Adapter] open(path): 유효한 포트 경로가 필요합니다.');
+      throw new Error(
+        '[Callstar][Adapter] open(path): 유효한 포트 경로가 필요합니다.'
+      );
     }
     if (this.opening) {
       logger.warn('[Callstar][Adapter] open()이 실행 중입니다.');
@@ -39,7 +44,11 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
     }
     if (this.port?.isOpen && this.status.callstarPort === target) {
       logger.info('[Callstar][Adapter] 이미 같은 포트에서 열려있습니다.');
-      this._updateStatus({ isOpen: true, callstarPort: target, deviceType: 'callstar' });
+      this._updateStatus({
+        isOpen: true,
+        callstarPort: target,
+        cidType: 'callstar',
+      });
       return;
     }
 
@@ -66,7 +75,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
         await this.port!.flush();
         await this.port!.drain?.();
       } catch (e: any) {
-        logger.debug('[Callstar][Adapter] flush/drain 스킵: ', (e as Error)?.message);
+        logger.debug('[Callstar][Adapter] flush/drain 스킵: ', e?.message);
       }
 
       const onData = (chunk: Buffer) => this.onData(chunk);
@@ -80,7 +89,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
         this._updateStatus({
           isOpen: false,
           callstarPort: undefined,
-          deviceType: undefined,
+          cidType: undefined,
         });
         this.teardownPort();
       };
@@ -93,46 +102,15 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
       this._updateStatus({
         isOpen: true,
         callstarPort: target,
-        deviceType: 'callstar',
+        cidType: 'callstar',
       });
-
-      // this.port.on('data', (chunk: Buffer) => this.onData(chunk));
-
-      // this.port.on('error', (e: Error) => {
-      //   logger.error('[Callstar][Adapter] Error: ', e);
-      //   this.emit('error', e);
-      // });
-
-      // this.port.on('close', () => {
-      //   logger.warn('[Callstar][Adapter] Port closed');
-      //   this._updateStatus({
-      //     isOpen: false,
-      //     callstarPort: undefined,
-      //     deviceType: undefined,
-      //   });
-      // });
-
-      // logger.info(`[Callstar][Adapter] Port opened: ${path}`);
-      // this._updateStatus({
-      //   isOpen: true,
-      //   callstarPort: path,
-      //   deviceType: 'callstar',
-      // });
-    } catch (e) {
-      // logger.error(`[Callstar][Adapter] 포트 열기 에러: `, e);
-      // this.port = undefined;
-      // this._updateStatus({
-      //   isOpen: false,
-      //   callstarPort: undefined,
-      //   deviceType: undefined,
-      // });
-      // throw e;
-      logger.error(`[Callstar][Adapter] 포트 열기 에러: `, e);
+    } catch (e: any) {
+      logger.error(`[Callstar][Adapter] 포트 열기 에러: `, e?.message);
       this.teardownPort();
       this._updateStatus({
         isOpen: false,
         callstarPort: undefined,
-        deviceType: undefined,
+        cidType: undefined,
       });
       throw e;
     } finally {
@@ -141,7 +119,7 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
   }
 
   /**
-   * 포트 닫기
+   * Callstar CID: 포트 닫기
    * --
    */
   async close() {
@@ -160,15 +138,8 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
           this.port!.close((err) => (err ? reject(err) : resolve()));
         });
       }
-      // this.port = undefined;
-      // this.fb.clear();
-      // this._updateStatus({
-      //   isOpen: false,
-      //   callstarPort: undefined,
-      //   deviceType: undefined,
-      // });
-    } catch (e) {
-      logger.error(`[Callstar][Adapter] Port closing Error: `, e);
+    } catch (e: any) {
+      logger.error(`[Callstar][Adapter] 포트 닫는 중 에러 발생F: `, e);
       throw e;
     } finally {
       this.teardownPort();
@@ -176,12 +147,16 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
       this._updateStatus({
         isOpen: false,
         callstarPort: undefined,
-        deviceType: undefined,
+        cidType: undefined,
       });
       this.closing = false;
     }
   }
 
+  /**
+   * 포트 리스너 삭제
+   * --
+   */
   private teardownPort() {
     try {
       if (this.port) {
@@ -189,12 +164,12 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
         this.port.removeAllListeners('error');
         this.port.removeAllListeners('close');
       }
-    } catch { }
+    } catch {}
     this.port = undefined;
   }
 
   /**
-   * 상태 확인
+   * 현재 CID 상태 가져오기
    * --
    */
   getStatus(): CidStatus {
@@ -214,16 +189,6 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
    * 수신 데이터 처리
    * --
    */
-  // private onData(chunk: Buffer) {
-  //   this.fb.push(chunk);
-  //   const frames = this.fb.drainFrame();
-  //   for (const raw of frames) {
-  //     const parsed = parsePacket(raw);
-  //     if (!parsed) continue;
-
-  //     this.emitCid(parsed);
-  //   }
-  // }
   private onData(chunk: Buffer) {
     try {
       this.fb.push(chunk);
@@ -233,17 +198,17 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
           const parsed = parsePacket(raw);
           if (!parsed) continue;
           this.emitCid(parsed);
-        } catch (e) {
-          logger.debug('[Callstar][Adapter] frame parse failed:', (e as Error)?.message);
+        } catch (e: any) {
+          logger.debug('[Callstar][Adapter] 패킷 분석 실패: ', e?.message);
         }
       }
-    } catch (e) {
-      logger.debug('[Callstar][Adapter] onData error:', (e as Error)?.message);
+    } catch (e: any) {
+      logger.debug('[Callstar][Adapter] onData() 에러: ', e?.message);
     }
   }
 
   /**
-   * 패킷 분석 후 Emit
+   * 이벤트 송신(Emit)
    * --
    */
   private emitCid(p: any) {
@@ -264,24 +229,25 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
         }
         break;
       }
-      case OPCODE.DEVICE_INFO:
-        cidData = { type: 'device-info', payload: p.payload };
-        break;
-      case OPCODE.DIAL_OUT:
-        cidData = { type: 'dial-out', payload: p.payload };
-        break;
-      case OPCODE.DIAL_COMPLETE:
-        cidData = { type: 'dial-complete' };
-        break;
-      case OPCODE.FORCE_END:
-        cidData = { type: 'force-end' };
-        break;
-      case OPCODE.OFF_HOOK:
-        cidData = { type: 'off-hook' };
-        break;
-      case OPCODE.ON_HOOK:
-        cidData = { type: 'on-hook' };
-        break;
+      // 추후 확장 시, 주석 해제
+      // case OPCODE.DEVICE_INFO:
+      //   cidData = { type: 'device-info', payload: p.payload };
+      //   break;
+      // case OPCODE.DIAL_OUT:
+      //   cidData = { type: 'dial-out', payload: p.payload };
+      //   break;
+      // case OPCODE.DIAL_COMPLETE:
+      //   cidData = { type: 'dial-complete' };
+      //   break;
+      // case OPCODE.FORCE_END:
+      //   cidData = { type: 'force-end' };
+      //   break;
+      // case OPCODE.OFF_HOOK:
+      //   cidData = { type: 'off-hook' };
+      //   break;
+      // case OPCODE.ON_HOOK:
+      //   cidData = { type: 'on-hook' };
+      //   break;
     }
 
     if (cidData) {

@@ -3,7 +3,6 @@
  * --
  */
 import { app, BrowserWindow } from 'electron';
-// import { createApp } from './app';
 import { createApp } from './app';
 import logger from './logs/logger';
 
@@ -11,18 +10,18 @@ import logger from './logs/logger';
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-	app.quit();
+  app.quit();
 } else {
-	app.on('second-instance', () => {
-		const win = BrowserWindow.getAllWindows()[0];
-		if (win) {
-			if (win.isMinimized()) win.restore();
-			win.focus();
-		}
-	});
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
 
-	createApp().catch(err => {
-		logger.error('[main] Unhandled error during app creation:', err);
-		app.quit();
-	});
+  createApp().catch((err) => {
+    logger.error('[main] Unhandled error during app creation:', err);
+    app.quit();
+  });
 }

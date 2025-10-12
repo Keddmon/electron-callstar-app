@@ -1,15 +1,22 @@
-import { STX, ETX, FRAME_BODY_LEN, CHANNEL } from '../constants/callstar.constant';
-// import { OPCODE } from '../constants/callstar.constant';
+import {
+  STX,
+  ETX,
+  FRAME_BODY_LEN,
+  CHANNEL,
+} from '../constants/callstar.constant';
 import { logger } from '../logs';
 
 export const makePacket = (opcode: string, payload = ''): string => {
   let body = `${CHANNEL}${opcode}${payload}`;
 
   if (body.length > FRAME_BODY_LEN) {
-    logger.warn(`[PacketParser][makePacket] 패킷의 body가 너무 깁니다. OPCODE: ${opcode}`, {
-      originalLength: body.length,
-      maxLength: FRAME_BODY_LEN,
-    });
+    logger.warn(
+      `[PacketParser][makePacket] 패킷의 body가 너무 깁니다. OPCODE: ${opcode}`,
+      {
+        originalLength: body.length,
+        maxLength: FRAME_BODY_LEN,
+      }
+    );
     body = body.slice(0, FRAME_BODY_LEN);
   } else {
     body = body.padEnd(FRAME_BODY_LEN, ' ');
@@ -19,7 +26,7 @@ export const makePacket = (opcode: string, payload = ''): string => {
   logger.debug(`[PacketParser][makePacket]: ${packet}`);
 
   return packet;
-}
+};
 
 export const parsePacket = (raw: string) => {
   logger.debug(`[PacketParser][parsePacket] raw: `, { raw });
@@ -46,7 +53,11 @@ export const parsePacket = (raw: string) => {
   const channel = body[0];
   const opcode = body[1];
   const payload = body.slice(2).trim();
-  logger.debug(`[PacketParser][parsePacket] 성공: `, { channel, opcode, payload });
+  logger.debug(`[PacketParser][parsePacket] 성공: `, {
+    channel,
+    opcode,
+    payload,
+  });
 
   return {
     channel,
@@ -54,4 +65,4 @@ export const parsePacket = (raw: string) => {
     payload,
     raw,
   };
-}
+};

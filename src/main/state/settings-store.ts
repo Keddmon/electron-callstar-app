@@ -1,14 +1,12 @@
-/**
- * CID 설정 저장 및 불러오기 (로컬 저장: settings.json)
- * --
- */
-
+/** PACKAGE */
 import { app } from 'electron';
 import path from 'path';
 import { promises as fs } from 'fs';
+/** UTILS */
 import { logger } from '../logs';
-import { Settings } from '../types/settings.d';
 import { deepMerge } from '../utils';
+/** CONSTANTS & INTERFACES & TYPES */
+import { Settings } from '../types/settings.d';
 
 /**
  * 기본 설정
@@ -16,18 +14,19 @@ import { deepMerge } from '../utils';
  */
 const DEFAULTS: Settings = {
   cid: {
-    deviceType: 'callstar',
+    cidType: 'callstar',
   },
   ipPhones: [],
-  app: {
-    startOnLogin: false,
-  },
   window: {
     width: 1200,
     height: 800,
   },
 };
 
+/**
+ * CID 설정 저장 및 불러오기 (로컬 저장: settings.json)
+ * --
+ */
 class SettingsStore {
   private filePath: string;
   private cache: Settings = DEFAULTS;

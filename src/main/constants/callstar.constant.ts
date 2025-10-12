@@ -2,37 +2,36 @@
  * CID 기기 프로토콜 상수 정의
  * --
  */
-const STX = '\x02';              // 02H: 시작 (1byte)
-const ETX = '\x03';              // 03H: 끝  (1byte)
+const STX = '\x02'; // 02H: 시작 (1byte)
+const ETX = '\x03'; // 03H: 끝  (1byte)
 
-const FRAME_BODY_LEN = 20;       // Total 20(22 - 1 - 1) byte 통신
+const FRAME_BODY_LEN = 20; // Total 20(22 - 1 - 1) byte 통신
 
-const BAUD_RATE = 19200;         // baudRate 기본값 19200
-const CHANNEL = '1';             // channel 기본값 '1' / string
-const DATA_BITS = 8;             // dataBits 기본값 8
-const STOP_BITS = 1;             // stopBits 기본값 1
+const BAUD_RATE = 19200; // baudRate 기본값 19200
+const CHANNEL = '1'; // channel 기본값 '1' / string
+const DATA_BITS = 8; // dataBits 기본값 8
+const STOP_BITS = 1; // stopBits 기본값 1
 
 /** CID 프로토콜 명령어 */
 const OPCODE = {
-
   /* ===== 장비 ID 확인 ===== */
   // 요청 및 응답 프로토콜 명령어가 'P'로 동일하여, 구분 불가
-  DEVICE_INFO: 'P',                       // 장치 정보 요청 및 응답 (PC → 장치) 및 (장치 → PC)
+  DEVICE_INFO: 'P', // 장치 정보 요청 및 응답 (PC → 장치) 및 (장치 → PC)
 
   /* ===== 수신호 처리 Protocol ===== */
-  INCOMING: 'I',                          // 수신 전화        (장치 → PC)
-  PRIVATE: 'P',                           // 발신번호표시 금지  (payload='P')
-  PUBLIC: 'C',                            // 공중전화         (payload='C')
-  UNKNOWN: 'O',                           // 발신번호 수집불가  (payload='O')
+  INCOMING: 'I', // 수신 전화        (장치 → PC)
+  PRIVATE: 'P', // 발신번호표시 금지  (payload='P')
+  PUBLIC: 'C', // 공중전화         (payload='C')
+  UNKNOWN: 'O', // 발신번호 수집불가  (payload='O')
 
   /* ===== 발신호 처리 Protocol ===== */
-  DIAL_OUT: 'O',                          // 발신 요청  (PC → 장치)
-  DIAL_COMPLETE: 'K',                     // 다이얼 완료 (장치 → PC)
-  FORCE_END: 'F',                        // 강제 종료  (PC → 장치)
+  DIAL_OUT: 'O', // 발신 요청  (PC → 장치)
+  DIAL_COMPLETE: 'K', // 다이얼 완료 (장치 → PC)
+  FORCE_END: 'F', // 강제 종료  (PC → 장치)
 
   /* ===== 수화기 처리 Protocol ===== */
-  OFF_HOOK: 'S',                          // 수화기 들음
-  ON_HOOK: 'E',                           // 수화기 내려놓음
+  OFF_HOOK: 'S', // 수화기 들음
+  ON_HOOK: 'E', // 수화기 내려놓음
 } as const;
 
 export {
@@ -43,5 +42,5 @@ export {
   CHANNEL,
   DATA_BITS,
   STOP_BITS,
-  OPCODE
+  OPCODE,
 };
