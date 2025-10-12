@@ -7,7 +7,7 @@ import { app } from 'electron';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { logger } from '../logs';
-import { Settings } from '../types/settings.d copy2';
+import { Settings } from '../types/settings.d';
 import { deepMerge } from '../utils';
 
 /**

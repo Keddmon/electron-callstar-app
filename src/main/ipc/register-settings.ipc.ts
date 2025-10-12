@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import { initializeCidService } from '../app';
-import { settingsStore } from '../state/settings-store copy2';
+import { settingsStore } from '../state/settings-store';
 
 export function registerSettingsIpc() {
   ipcMain.handle('settings:get', async () => settingsStore.get());

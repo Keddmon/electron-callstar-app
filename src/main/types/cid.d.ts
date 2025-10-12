@@ -11,7 +11,7 @@ export type CidPortInfo = {
 export type CidEvent =
   | {
       type: 'incoming';
-      payload: string | null;
+      payload: string | undefined;
       callId?: string;
       channel?: string;
       extension?: string;

@@ -7,12 +7,11 @@ export const IPC = {
     OPEN: 'cid:open',
     CLOSE: 'cid:close',
     STATUS: 'cid:status',
-    LIST_PORTS: 'cid:listPorts',
     EVENT: 'cid:event',
+    SWITCH_CID: 'cid:switchCid',
+    LIST_PORTS: 'cid:listPorts',
+    LIST_SWITCHES: 'cid:listSwitches',
     INCOMING: 'cid:incoming',
-  },
-  CAPTURE: {
-    LIST_DEVICES: 'capture:listDevices',
   },
   SETTINGS: {
     GET: 'settings:get',

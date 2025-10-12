@@ -5,12 +5,11 @@ const IPC = {
     OPEN: 'cid:open',
     CLOSE: 'cid:close',
     STATUS: 'cid:status',
-    LIST_PORTS: 'cid:listPorts',
     EVENT: 'cid:event',
+    SWITCH_CID: 'cid:switchCid',
+    LIST_PORTS: 'cid:listPorts',
+    LIST_SWITCHES: 'cid:listSwitches',
     INCOMING: 'cid:incoming',
-  },
-  CAPTURE: {
-    LIST_DEVICES: 'capture:listDevices',
   },
   SETTINGS: {
     GET: 'settings:get',
@@ -113,7 +112,9 @@ const api = {
     open: (args?: { path: string }) => ipcRenderer.invoke(IPC.CID.OPEN, args),
     close: () => ipcRenderer.invoke(IPC.CID.CLOSE),
     getStatus: () => ipcRenderer.invoke(IPC.CID.STATUS),
+    switchCid: (args: { type: string, path?: string, captureDevice?: string }) => ipcRenderer.invoke(IPC.CID.SWITCH_CID, args),
     listPorts: () => ipcRenderer.invoke(IPC.CID.LIST_PORTS),
+    listSwitches: () => ipcRenderer.invoke(IPC.CID.LIST_SWITCHES),
     // TEST (추후 삭제 요망)
     incoming: (payload: string) =>
       ipcRenderer.invoke(IPC.CID.INCOMING, { payload }),
@@ -131,13 +132,6 @@ const api = {
       ipcRenderer.on(IPC.CID.STATUS, handler);
       return () => ipcRenderer.removeListener(IPC.CID.STATUS, handler);
     },
-  },
-
-  /**
-   * 네트워크 장치 캡처 관련
-   */
-  capture: {
-    listDevices: () => ipcRenderer.invoke(IPC.CAPTURE.LIST_DEVICES),
   },
 
   /**

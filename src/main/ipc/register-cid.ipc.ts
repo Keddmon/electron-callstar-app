@@ -2,7 +2,12 @@ import { BrowserWindow, IpcMain, ipcMain } from 'electron';
 import { logger } from '../logs';
 import type { CidAdapter } from '../interfaces/cid.interface';
 import { IPC } from '../constants/ipc.constant';
-import { CallstarCidAdapter } from '../cid/callstar.adapter';
+import { settingsStore } from '../state/settings-store';
+import { initializeCidService } from '../app';
+
+type CidPayload =
+  | { type: 'callstar'; path: string }
+  | { type: 'switch'; captureDevice: string };
 
 export function registerCidIpc(
   getAdapter: () => CidAdapter | null,
@@ -16,7 +21,6 @@ export function registerCidIpc(
   const sendToFrontend = (channel: string, payload: any) => {
     const win = getWindow();
     if (!win || win.isDestroyed()) return;
-
     try {
       win.webContents.send(channel, payload);
     } catch (e) {
@@ -34,31 +38,25 @@ export function registerCidIpc(
     if (boundAdapter) {
       if (onCid) boundAdapter.removeListener('cid', onCid);
       if (onStatus) boundAdapter.removeListener('status', onStatus);
+      onCid = null;
+      onStatus = null;
     }
 
     boundAdapter = adapter;
 
     if (!adapter) {
-      logger.debug('[CID][IPC] 어댑터 붙은게 없음');
+      logger.debug('[CID][IPC] 어댑터 없음(분리됨)');
       return;
     }
 
-    if (adapter) {
-      onCid = (payload: any) => sendToFrontend(IPC.CID.EVENT, payload);
-      onStatus = (s: any) => sendToFrontend(IPC.CID.STATUS, s);
-      adapter.on('cid', onCid);
-      adapter.on('status', onStatus);
-      logger.info('[CID][IPC] attached listeners to adapter');
-    }
+    onCid = (payload: any) => sendToFrontend(IPC.CID.EVENT, payload);
+    onStatus = (s: any) => sendToFrontend(IPC.CID.STATUS, s);
+    adapter.on('cid', onCid);
+    adapter.on('status', onStatus);
+    logger.info('[CID][IPC] 어댑터 리스너 부착 완료');
   };
 
-  const attachInterval = setInterval(() => {
-    try {
-      attachAdapter(getAdapter());
-    } catch (e) {
-      logger.debug('[CID][IPC] attach check failed', e);
-    }
-  }, 1000);
+  attachAdapter(getAdapter());
 
   /** ========== Frontend와 통신하는 함수(기능) ========== */
   /**
@@ -71,14 +69,15 @@ export function registerCidIpc(
       return { data: null, error: 'CID 어댑터가 준비되지 않았습니다.' };
     try {
       const param = args?.path ?? args;
-      if (typeof adapter.open === 'function') {
-        await adapter.open(param);
-        attachAdapter(adapter);
-        return { data: adapter.getStatus?.() ?? null, error: null };
+      if (typeof (adapter as any).open !== 'function') {
+        return { data: null, error: '어댑터에 open()이 없습니다.' };
       }
-      return { data: null, error: '어댑터에 open()가 없습니다.' };
+      await (adapter as any).open(param);
+      attachAdapter(adapter);
+      const status = (adapter as any).getStatus?.() ?? null;
+      return { data: status, error: null };
     } catch (e: any) {
-      logger.error('[CID][IPC] OPEN() Error: ', e);
+      logger.error('[CID][IPC] OPEN 실패: ', e);
       return { data: null, error: e?.message ?? String(e) };
     }
   });
@@ -89,14 +88,15 @@ export function registerCidIpc(
    */
   ipcm.handle(IPC.CID.CLOSE, async (): Promise<any> => {
     const adapter = getAdapter();
-    if (!adapter) return { data: null, error: 'CID adapter not ready' };
+    if (!adapter) return { data: null, error: 'CID 어댑터가 준비되지 않았습니다.' };
     try {
-      await adapter.close();
+      await (adapter as any).close?.();
       attachAdapter(null);
-      return { data: adapter.getStatus?.() ?? null, error: null };
+      const status = (adapter as any).getStatus?.() ?? null;
+      return { data: status, error: null };
     } catch (e: any) {
-      logger.error('[CID][IPC] CLOSE() Error: ', e);
-      return { data: null, error: e?.message ?? String(e) };
+      logger.error('[CID][IPC] CLOSE 실패: ', e);
+      return { data: null, error: e.message ?? String(e) };
     }
   });
 
@@ -106,27 +106,52 @@ export function registerCidIpc(
    */
   ipcm.handle(IPC.CID.STATUS, async (): Promise<any> => {
     const adapter = getAdapter();
-    if (!adapter) return { data: null, error: 'CID adapter not ready' };
+    if (!adapter) return { data: null, error: 'CID 어댑터가 준비되지 않았습니다.' };
     try {
-      const status = adapter.getStatus ? adapter.getStatus() : null;
+      const status = (adapter as any).getStatus?.() ?? null;
       return { data: status, error: null };
     } catch (e: any) {
-      logger.error('[CID][IPC] STATUS() Error: ', e);
+      logger.error('[CID][IPC] STATUS 실패: ', e);
       return { data: null, error: e?.message ?? String(e) };
     }
   });
 
   /**
-   * CID PORT LIST
+   * SWITCH CID
    * --
    */
-  ipcm.handle(IPC.CID.LIST_PORTS, async (): Promise<any> => {
+  ipcm.handle(IPC.CID.SWITCH_CID, async (_e, payload: CidPayload) => {
     try {
-      const ports = await CallstarCidAdapter.listPorts();
-      return { data: ports, error: null };
+      if (!payload || !payload.type) return { data: null, error: '전환 payload가 비어 있습니다.' };
+
+      if (payload.type === 'callstar') {
+        if (!payload.path || typeof payload.path !== 'string') {
+          return { data: null, error: 'callstar 전환에는 유효한 포트 경로(path)가 필요합니다.' };
+        }
+        await settingsStore.patch({
+          cid: { deviceType: 'callstar', callstarPort: payload.path, switchCaptureDevice: undefined },
+        });
+      } else if (payload.type === 'switch') {
+        if (!payload.captureDevice || typeof payload.captureDevice !== 'string') {
+          return { data: null, error: 'switch 전환에는 유효한 캡처 장치 식별자(captureDevice)가 필요합니다.' };
+        }
+        await settingsStore.patch({
+          cid: { deviceType: 'switch', switchCaptureDevice: payload.captureDevice, callstarPort: undefined },
+        });
+      } else {
+        return { data: null, error: `알 수 없는 타입: ${(payload as any).type}` };
+      }
+
+      await initializeCidService();
+
+      const next = getAdapter();
+      attachAdapter(next);
+
+      const status = next?.getStatus?.() ?? null;
+      return { data: status, error: null };
     } catch (e: any) {
-      logger.error('[CID][IPC] LIST_PORTS() Error: ', e);
-      return { data: null, error: e?.message ?? String(e) };
+      logger.error('[CID][IPC] SWITCH_CID 실패: ', e);
+      return { data: null, error: e.message ?? String(e) };
     }
   });
 
@@ -143,7 +168,6 @@ export function registerCidIpc(
 
   const cleanup = () => {
     try {
-      clearInterval(attachInterval);
       attachAdapter(null);
     } catch (e) {
       logger.debug('[CID][IPC] cleanup error', e);
