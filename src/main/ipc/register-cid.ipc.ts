@@ -11,8 +11,8 @@ import { settingsStore } from '../state/settings-store';
 import { IPC } from '../constants/ipc.constant';
 
 type CidPayload =
-  | { type: 'callstar'; callstarPort: string }
-  | { type: 'switch'; captureDevice: string };
+  | { cidType: 'callstar'; callstarPort: string }
+  | { cidType: 'switch'; captureDevice: string };
 
 const registerCidIpc = (
   getAdapter: () => CidAdapter | null,
@@ -80,6 +80,18 @@ const registerCidIpc = (
       await (adapter as any).open(param);
       attachAdapter(adapter);
       const status = (adapter as any).getStatus?.() ?? null;
+
+      if (!status?.isOpen) {
+        const hint =
+          process.platform === 'win32'
+            ? 'Npcap(WinPcap 호환 모드) 설치 및 관리자 권한을 확인하세요.'
+            : process.platform === 'darwin'
+            ? 'macOS에서 /dev/bpf* 권한이 필요합니다. 관리자 권한 또는 access_bpf 그룹 설정을 확인하세요.'
+            : '패킷 캡처 권한/드라이버를 확인하세요(예: root 또는 wireshark 그룹, setcap).';
+        return { data: status, error: `캡처 장치를 열 수 없습니다. ${hint}` };
+      }
+
+      sendToFrontend(IPC.CID.STATUS, status);
       return { data: status, error: null };
     } catch (e: any) {
       logger.error('[CID][IPC] OPEN 실패: ', e);
@@ -129,10 +141,10 @@ const registerCidIpc = (
    */
   ipcm.handle(IPC.CID.SWITCH_CID, async (_e, payload: CidPayload) => {
     try {
-      if (!payload || !payload.type)
+      if (!payload || !payload.cidType)
         return { data: null, error: '전환 payload가 비어 있습니다.' };
 
-      if (payload.type === 'callstar') {
+      if (payload.cidType === 'callstar') {
         if (!payload.callstarPort || typeof payload.callstarPort !== 'string') {
           return {
             data: null,
@@ -147,7 +159,7 @@ const registerCidIpc = (
             captureDevice: undefined,
           },
         });
-      } else if (payload.type === 'switch') {
+      } else if (payload.cidType === 'switch') {
         if (
           !payload.captureDevice ||
           typeof payload.captureDevice !== 'string'
@@ -178,6 +190,20 @@ const registerCidIpc = (
       attachAdapter(next);
 
       const status = next?.getStatus?.() ?? null;
+
+      if (!status?.isOpen) {
+        const hint =
+          process.platform === 'win32'
+            ? 'Npcap(WinPcap 호환 모드) 설치 및 관리자 권한을 확인하세요.'
+            : process.platform === 'darwin'
+            ? 'macOS에서 /dev/bpf* 권한이 필요합니다. 관리자 권한 또는 access_bpf 그룹 설정을 확인하세요.'
+            : '패킷 캡처 권한/드라이버를 확인하세요(예: root 또는 wireshark 그룹, setcap).';
+
+        sendToFrontend(IPC.CID.STATUS, status);
+        return { data: status, error: `캡처 장치를 열 수 없습니다. ${hint}` };
+      }
+
+      sendToFrontend(IPC.CID.STATUS, status);
       return { data: status, error: null };
     } catch (e: any) {
       logger.error('[CID][IPC] SWITCH_CID 실패: ', e);

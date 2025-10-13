@@ -70,7 +70,7 @@ interface IpPhone {
   macAddress?: string;
 }
 
-export interface Settings {
+interface Settings {
   cid: {
     cidType: 'callstar' | 'switch' | undefined;
     callstarPort?: string;
@@ -91,17 +91,15 @@ const api = {
     close: () => ipcRenderer.invoke(IPC.CID.CLOSE),
     getStatus: () => ipcRenderer.invoke(IPC.CID.STATUS),
     switchCid: (args: {
-      deviceType: string;
-      callstarPath?: string;
+      cidType: string;
+      callstarPort?: string;
       captureDevice?: string;
     }) => ipcRenderer.invoke(IPC.CID.SWITCH_CID, args),
     listPorts: () => ipcRenderer.invoke(IPC.CID.LIST_PORTS),
     listSwitches: () => ipcRenderer.invoke(IPC.CID.LIST_SWITCHES),
-    // Main -> Renderer 이벤트 수신
     onEvent: (callback: (evt: CidEvent) => void) => {
       const handler = (_e: IpcRendererEvent, evt: CidEvent) => callback(evt);
       ipcRenderer.on(IPC.CID.EVENT, handler);
-      // 클린업 함수 반환 (React useEffect 등에서 사용)
       return () => ipcRenderer.removeListener(IPC.CID.EVENT, handler);
     },
     onStatus: (callback: (status: CidStatus) => void) => {

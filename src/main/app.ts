@@ -71,7 +71,7 @@ export async function initializeCidService() {
       try {
         await adapter.close();
       } catch (e: any) {
-        logger.warn('[APp] 어댑터 종료 실패(무시): ', e ?? e.message);
+        logger.warn('[App] 어댑터 종료 실패(무시): ', e ?? e.message);
       } finally {
         adapter = null;
       }
@@ -82,14 +82,14 @@ export async function initializeCidService() {
     const cid = settings?.cid ?? {};
     const { cidType, callstarPort, captureDevice } = cid;
 
-    logger.info(`[app] 설정 기반 어댑터 생성 시도: ${cidType}`);
+    logger.info(`[App] 설정 기반 어댑터 생성 시도: ${cidType}`);
 
     if (
       cidType === 'callstar' &&
       (!callstarPort || callstarPort.trim() === '')
     ) {
       logger.warn(
-        '[app] callstar 선택됨: 포트(callstarPort) 미지정 → 사용자 선택 대기'
+        '[App] callstar 선택됨: 포트(callstarPort) 미지정 → 사용자 선택 대기'
       );
       emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType: 'callstar' });
       return;
@@ -99,7 +99,7 @@ export async function initializeCidService() {
       (!captureDevice || captureDevice.trim() === '')
     ) {
       logger.warn(
-        '[app] switch 선택됨: 캡처 장치(captureDevice) 미지정 → 사용자 선택 대기'
+        '[App] switch 선택됨: 캡처 장치(captureDevice) 미지정 → 사용자 선택 대기'
       );
       emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType: 'switch' });
       return;
@@ -108,14 +108,14 @@ export async function initializeCidService() {
     // 3) 팩토리로 생성 (cid.factory.ts의 fromSettings 사용)
     adapter = CidAdapterFactory.fromSettings(cid);
     if (!adapter) {
-      logger.warn('[app] 어댑터 생성 실패(설정 불충분/알 수 없는 타입).');
+      logger.warn('[App] 어댑터 생성 실패(설정 불충분/알 수 없는 타입).');
       emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType });
       return;
     }
 
     // 4) 이벤트 브릿지
     adapter.on('cid', (event: CidEvent) => {
-      logger.info('[app] CID 이벤트 발생 → Frontend 전송:', event);
+      logger.info('[App] CID 이벤트 발생 → Frontend 전송:', event);
       emitToFrontend(IPC.CID.EVENT, event);
     });
     // 일부 어댑터가 status 이벤트를 내보낼 수 있음
@@ -123,16 +123,25 @@ export async function initializeCidService() {
 
     // 5) 어댑터 시작 (타입별 인자)
     try {
-      logger.info('[app] CID 어댑터 시작 중...');
+      logger.info('[App] CID 어댑터 시작 중...');
       if (cidType === 'callstar') {
         await adapter.open(callstarPort!);
       } else {
         await adapter.open();
       }
+
+      const status = adapter.getStatus?.();
+      if (!status?.isOpen) {
+        logger.warn('[App] CID 어댑터 시작 실패(예외 없음, isOpen = false)');
+        adapter = null;
+        emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType });
+        return;
+      }
+
       emitStatus();
-      logger.info('[app] CID 어댑터 시작 완료.');
+      logger.info('[App] CID 어댑터 시작 완료.');
     } catch (e) {
-      logger.error('[app] CID 어댑터 시작 실패:', e);
+      logger.error('[App] CID 어댑터 시작 실패:', e);
       adapter = null;
       emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType });
     }
@@ -145,7 +154,7 @@ export async function initializeCidService() {
   }
 
   logger.info(
-    '[app] CID 서비스 초기화 완료. 현재 어댑터: ',
+    '[App] CID 서비스 초기화 완료. 현재 어댑터: ',
     adapter ? adapter : '없음'
   );
 }

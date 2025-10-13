@@ -1,5 +1,6 @@
 /** PACKAGE */
 import { EventEmitter } from 'events';
+import * as fs from 'fs';
 /** UTILS */
 import { logger } from '../logs';
 import { one, safeParseHeaders } from '../utils/sip';
@@ -97,6 +98,29 @@ const hash32 = (s: string): number => {
   }
   return h | 0;
 };
+
+/** macOS BPF 접근 사전 점검: 권한 없으면 cap.open 호출 자체를 피한다 */
+function canUseBpfOnDarwin(): { ok: boolean; reason?: string } {
+  if (process.platform !== 'darwin') return { ok: true };
+  try {
+    // 읽기만으로도 권한 에러(EACCES)가 나면 캡처 불가로 판단
+    const fd = fs.openSync('/dev/bpf0', 'r');
+    fs.closeSync(fd);
+    return { ok: true };
+  } catch (e: any) {
+    const code = e?.code || e?.message || String(e);
+    return {
+      ok: false,
+      reason: `macOS BPF 접근 실패 (${code}). 관리자 권한 또는 access_bpf 그룹이 필요합니다.`,
+    };
+  }
+}
+
+/** utun/awdl/lo/p2p 등 문제성 인터페이스 가드 */
+function isBlockedInterfaceOnDarwin(name: string) {
+  if (process.platform !== 'darwin') return false;
+  return /^(utun|awdl|lo|p2p)\d*$/i.test(name);
+}
 /**!SECTION - Helper Function */
 
 class SwitchCidAdapter extends EventEmitter implements CidAdapter {
@@ -135,12 +159,27 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
         if (!Decoders) throw new Error('cap.decoders not found');
       } catch (e: any) {
         logger.error(
-          `[Switch][Adapter] cap 모듈 로드 실패: ${e?.message || e}`
+          `[Switch][Adapter] cap 모듈 로드 실패: ${e?.message || String(e)}`
         );
-        throw new Error(
-          '네트워크 캡처 모듈(cap)을 불러오지 못했습니다. Npcap/electron-rebuild 확인 요망.'
-        );
+        this._updateStatus({
+          isOpen: false,
+          captureDevice: undefined,
+          cidType: 'switch',
+        });
+        return;
       }
+    }
+
+    // macOS: BPF 사전 권한 체크
+    const bpf = canUseBpfOnDarwin();
+    if (!bpf.ok) {
+      logger.error(`[Switch][Adapter] 사전 체크 실패: ${bpf.reason}`);
+      this._updateStatus({
+        isOpen: false,
+        captureDevice: undefined,
+        cidType: 'switch',
+      });
+      return; // ❗️cap.open 호출 자체 회피
     }
 
     this.ipPhones = settingsStore.get().ipPhones ?? [];
@@ -152,9 +191,28 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
 
     const device = this.findDevice(this.captureDevice);
     if (!device) {
-      throw new Error(
+      logger.warn(
         `[Switch][Adapter] 캡처 장비를 찾을 수 없음: ${this.captureDevice}`
       );
+      this._updateStatus({
+        isOpen: false,
+        captureDevice: undefined,
+        cidType: 'switch',
+      });
+      return;
+    }
+
+    // macOS: 문제성 인터페이스 차단
+    if (isBlockedInterfaceOnDarwin(device)) {
+      logger.warn(
+        `[Switch][Adapter] 지원하지 않는 인터페이스( macOS ): ${device} → 캡처 중단`
+      );
+      this._updateStatus({
+        isOpen: false,
+        captureDevice: device,
+        cidType: 'switch',
+      });
+      return;
     }
 
     this.cap = new CapMod();
@@ -164,6 +222,10 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
     try {
       (this.cap as any).open(device, filter, bufSize, buffer);
       if ((this.cap as any).setMinBytes) (this.cap as any).setMinBytes(0);
+
+      (this.cap as any).on?.('error', (e: any) => {
+        logger.error('[Switch][Adapter] cap 에러: ', e?.message || String(e));
+      });
 
       this.handler = ((arg1: any, _arg2: any) => {
         try {
@@ -378,9 +440,21 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
       (this.cap as any).on('packet', this.handler as any);
     } catch (e: any) {
       logger.error(
-        `[Switch][Adapter] cap.open 실패 - Npcap 설치 및 캡처 권한 확인: ${e.message}`
+        `[Switch][Adapter] cap.open 실패 - Npcap 설치 및 캡처 권한 확인: ${
+          e.message || String(e)
+        }`
       );
-      throw e;
+      try {
+        (this.cap as any)?.close?.();
+      } catch {}
+      this.cap = null;
+      this.handler = undefined;
+      this._updateStatus({
+        isOpen: false,
+        captureDevice: device,
+        cidType: 'switch',
+      });
+      return;
     }
 
     this._updateStatus({
