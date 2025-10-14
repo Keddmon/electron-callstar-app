@@ -12,27 +12,30 @@
     "typecheck": "tsc --noEmit",
     "prebuild": "rimraf dist",
     "build": "npm run lint && npm run typecheck && tsc",
-    "rebuild": "electron-rebuild -f -w cap",
+    "rebuild": "electron-rebuild -f -w \"cap,serialport\"",
+    "postinstall": "electron-rebuild -f -w \"cap,serialport\"",
     "pack": "npm run pack:prod",
-    "pack:prod": "npm run build && npm run rebuild && electron-builder -c.extraMetadata.frontendUrl=\"https://bunyangin.com/\"",
-    "pack:local": "npm run build && npm run rebuild && electron-builder -c.extraMetadata.frontendUrl=\"http://localhost:5173/#/\"",
-    "postinstall": "electron-rebuild -f -w cap",
+    "pack:prod": "npm run build && npm run rebuild && electron-builder --win -c.extraMetadata.frontendUrl=https://bunyangin.com/",
+    "pack:local": "npm run build && npm run rebuild && electron-builder --win -c.extraMetadata.frontendUrl=http://localhost:5173/#/",
     "build:main": "tsc -p tsconfig.json"
   },
   "build": {
-    "appId": "com.bunyangin.app",
-    "productName": "Bunyangin App",
-    "files": [
-      "dist/**/*"
+    "appId": "com.bunyangin.local.app",
+    "productName": "Bunyangin Local App",
+    "asarUnpack": [
+      "**/*.node",
+      "**/node_modules/cap/**",
+      "**/node_modules/serialport/**",
+      "**/node_modules/@serialport/**"
     ],
+    "npmRebuild": false,
     "directories": {
       "buildResources": "assets",
       "output": "release"
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icons/icon.ico",
-      "requestExecutionLevel": "requireAdministrator"
+      "icon": "assets/icons/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -59,7 +62,6 @@
     "eslint": "^9.33.0",
     "nodemon": "^3.1.10",
     "rimraf": "^6.0.1",
-    "sip-parser": "^1.5.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2",
     "wait-on": "^8.0.4"
@@ -69,6 +71,7 @@
     "dayjs": "^1.11.13",
     "dotenv": "^17.2.1",
     "serialport": "^13.0.0",
+    "sip-parser": "^1.5.1",
     "socket.io-client": "^4.8.1",
     "typescript-eslint": "^8.44.0",
     "winston": "^3.17.0",

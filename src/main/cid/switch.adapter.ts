@@ -23,12 +23,66 @@ type SipHeaders = Record<string, string | string[]>;
 type PacketHandlerA = (nbytes: number, trunc: boolean) => void; // cap >= 0.3
 type PacketHandlerB = (buffer: Buffer, linkType: string) => void; // cap 구버전
 
+type CapModule = {
+  Cap?: any;
+  decoders?: any;
+  deviceList?: () => any[];
+  findDevice?: (ipOrDev: string) => string | undefined;
+  default?: CapModule;
+};
+
+/** GLOBALS */
 let CapMod: any | null = null;
 let Decoders: any | null = null;
 
 /**
  * SECTION - Helper Function
  */
+/**
+ * Switch CID: Cap 모듈 안전하게 로드하기
+ * --
+ */
+const loadCapSafe = (): { CapCtor: any | null; decoders: any | null } => {
+  try {
+    const root = require('cap') as CapModule;
+
+    const mod = (root?.default as CapModule) || root;
+
+    const CapCtor = (mod?.Cap ?? mod) || null;
+    const decoders =
+      mod?.decoders ??
+      (mod as any)?.default?.decoders ??
+      null;
+
+    return { CapCtor, decoders };
+  } catch (e: any) {
+    logger.error(`[Switch][Adapter] cap 모듈 로드 실패: `, e?.message || e);
+    return { CapCtor: null, decoders: null };
+  }
+}
+
+/**
+ * Switch CID: 캡처 장비 목록
+ * --
+ */
+const getDeviceList = (): (() => any[]) | null => {
+  if (!CapMod) return null;
+  if (typeof CapMod.deviceList === 'function') return CapMod.deviceList;
+  if (typeof CapMod.Cap?.deviecList === 'function') return CapMod.Cap.deviceList;
+  return null;
+}
+
+/**
+ * Switch CID: 캡처 장비 찾기
+ * --
+ */
+const getFindDevice = (): ((ipOrDev: string) => string | undefined) | null => {
+  if (!CapMod) return null;
+  if (typeof CapMod.findDevice === 'function') return CapMod.findDevice;
+  if (typeof CapMod.Cap?.findDeviec === 'function') return CapMod.Cap.findDevice;
+  return null;
+}
+
 /**
  * header 값을 항상 string(첫 요소)로 정규화
  * --
@@ -99,8 +153,11 @@ const hash32 = (s: string): number => {
   return h | 0;
 };
 
-/** macOS BPF 접근 사전 점검: 권한 없으면 cap.open 호출 자체를 피한다 */
-function canUseBpfOnDarwin(): { ok: boolean; reason?: string } {
+/**
+ * macOS BPF 접근 사전 점검
+ * --
+ */
+const canUseBpfOnDarwin = (): { ok: boolean; reason?: string } => {
   if (process.platform !== 'darwin') return { ok: true };
   try {
     // 읽기만으로도 권한 에러(EACCES)가 나면 캡처 불가로 판단
@@ -116,8 +173,11 @@ function canUseBpfOnDarwin(): { ok: boolean; reason?: string } {
   }
 }
 
-/** utun/awdl/lo/p2p 등 문제성 인터페이스 가드 */
-function isBlockedInterfaceOnDarwin(name: string) {
+/**
+ * utun/awdl/lo/p2p 등 문제성 인터페이스 가드
+ * --
+ */
+const isBlockedInterfaceOnDarwin = (name: string) => {
   if (process.platform !== 'darwin') return false;
   return /^(utun|awdl|lo|p2p)\d*$/i.test(name);
 }
@@ -125,11 +185,7 @@ function isBlockedInterfaceOnDarwin(name: string) {
 
 class SwitchCidAdapter extends EventEmitter implements CidAdapter {
   private cap: any | null = null;
-  private status: CidStatus = {
-    isOpen: false,
-    captureDevice: undefined,
-    cidType: undefined,
-  };
+  private status: CidStatus = { isOpen: false, captureDevice: undefined, cidType: undefined };
   private handler?: PacketHandlerA | PacketHandlerB;
   private ipPhones: IpPhone[] = [];
 
@@ -138,9 +194,7 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
 
   constructor(private readonly captureDevice: string) {
     super();
-    if (!captureDevice) {
-      throw new Error('[Switch][Adapter] 캡처 장비가 지정되지 않았습니다.');
-    }
+    if (!captureDevice) throw new Error('[Switch][Adapter] 캡처 장비가 지정되지 않았습니다.');
   }
 
   /**
@@ -152,22 +206,24 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
     if (this.status.isOpen) return;
 
     if (!CapMod || !Decoders) {
-      try {
-        const capRoot = require('cap');
-        CapMod = capRoot.Cap ?? capRoot;
-        Decoders = capRoot.decoders ?? capRoot?.default?.decoders;
-        if (!Decoders) throw new Error('cap.decoders not found');
-      } catch (e: any) {
-        logger.error(
-          `[Switch][Adapter] cap 모듈 로드 실패: ${e?.message || String(e)}`
-        );
-        this._updateStatus({
-          isOpen: false,
-          captureDevice: undefined,
-          cidType: 'switch',
-        });
+      const { CapCtor, decoders } = loadCapSafe();
+      CapMod = CapCtor;
+      Decoders = decoders;
+      if (!CapMod || !Decoders) {
+        logger.error(`[Switch][Adapter] cap 초기화 실패 (Cap/decoders 없음)`);
+        this._updateStatus({ isOpen: false, captureDevice: undefined, cidType: 'switch' });
         return;
       }
+      // try {
+      //   const capRoot = require('cap');
+      //   CapMod = capRoot.Cap ?? capRoot;
+      //   Decoders = capRoot.decoders ?? capRoot?.default?.decoders;
+      //   if (!Decoders) throw new Error('cap.decoders not found');
+      // } catch (e: any) {
+      //   logger.error(`[Switch][Adapter] cap 모듈 로드 실패: ${e?.message || String(e)}`);
+      //   this._updateStatus({ isOpen: false, captureDevice: undefined, cidType: 'switch' });
+      //   return;
+      // }
     }
 
     // macOS: BPF 사전 권한 체크
@@ -179,7 +235,7 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
         captureDevice: undefined,
         cidType: 'switch',
       });
-      return; // ❗️cap.open 호출 자체 회피
+      return;
     }
 
     this.ipPhones = settingsStore.get().ipPhones ?? [];
@@ -191,9 +247,7 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
 
     const device = this.findDevice(this.captureDevice);
     if (!device) {
-      logger.warn(
-        `[Switch][Adapter] 캡처 장비를 찾을 수 없음: ${this.captureDevice}`
-      );
+      logger.warn(`[Switch][Adapter] 캡처 장비를 찾을 수 없음: ${this.captureDevice}`);
       this._updateStatus({
         isOpen: false,
         captureDevice: undefined,
@@ -204,9 +258,7 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
 
     // macOS: 문제성 인터페이스 차단
     if (isBlockedInterfaceOnDarwin(device)) {
-      logger.warn(
-        `[Switch][Adapter] 지원하지 않는 인터페이스( macOS ): ${device} → 캡처 중단`
-      );
+      logger.warn(`[Switch][Adapter] 지원하지 않는 인터페이스( macOS ): ${device} → 캡처 중단`);
       this._updateStatus({
         isOpen: false,
         captureDevice: device,
@@ -333,9 +385,9 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
               toUser:
                 this.tryPickUserFromHeaderUri(
                   h(headers, 'to') ||
-                    h(headers, 't') ||
-                    getHeaderVal(text, ['To', 't']) ||
-                    ''
+                  h(headers, 't') ||
+                  getHeaderVal(text, ['To', 't']) ||
+                  ''
                 ) ?? '',
               reqUser: this.tryPickUserFromRequestUri(text) ?? '',
               contactUser:
@@ -345,34 +397,34 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
               pai:
                 this.tryPickUserFromHeaderUri(
                   h(headers, 'p-asserted-identity') ||
-                    getHeaderVal(text, ['P-Asserted-Identity']) ||
-                    ''
+                  getHeaderVal(text, ['P-Asserted-Identity']) ||
+                  ''
                 ) ?? '',
               rpid:
                 this.tryPickUserFromHeaderUri(
                   h(headers, 'remote-party-id') ||
-                    getHeaderVal(text, ['Remote-Party-ID']) ||
-                    ''
+                  getHeaderVal(text, ['Remote-Party-ID']) ||
+                  ''
                 ) ?? '',
               ppi:
                 this.tryPickUserFromHeaderUri(
                   h(headers, 'p-preferred-identity') ||
-                    getHeaderVal(text, ['P-Preferred-Identity']) ||
-                    ''
+                  getHeaderVal(text, ['P-Preferred-Identity']) ||
+                  ''
                 ) ?? '',
               fromDisplay:
                 this.tryPickPlainDigits(
                   h(headers, 'from') ||
-                    h(headers, 'f') ||
-                    getHeaderVal(text, ['From', 'f']) ||
-                    ''
+                  h(headers, 'f') ||
+                  getHeaderVal(text, ['From', 'f']) ||
+                  ''
                 ) ?? '',
               fromUser:
                 this.tryPickUserFromHeaderUri(
                   h(headers, 'from') ||
-                    h(headers, 'f') ||
-                    getHeaderVal(text, ['From', 'f']) ||
-                    ''
+                  h(headers, 'f') ||
+                  getHeaderVal(text, ['From', 'f']) ||
+                  ''
                 ) ?? '',
               pickedCaller: caller ?? '',
               pickedExt: ext ?? '',
@@ -440,13 +492,12 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
       (this.cap as any).on('packet', this.handler as any);
     } catch (e: any) {
       logger.error(
-        `[Switch][Adapter] cap.open 실패 - Npcap 설치 및 캡처 권한 확인: ${
-          e.message || String(e)
+        `[Switch][Adapter] cap.open 실패 - Npcap 설치 및 캡처 권한 확인: ${e.message || String(e)
         }`
       );
       try {
         (this.cap as any)?.close?.();
-      } catch {}
+      } catch { }
       this.cap = null;
       this.handler = undefined;
       this._updateStatus({
@@ -546,9 +597,9 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
       const toUser =
         this.tryPickUserFromHeaderUri(
           h(headers, 'to') ||
-            h(headers, 't') ||
-            getHeaderVal(fullText, ['To', 't']) ||
-            ''
+          h(headers, 't') ||
+          getHeaderVal(fullText, ['To', 't']) ||
+          ''
         ) ?? '';
       const reqUser = this.tryPickUserFromRequestUri(fullText) ?? '';
       const ext = toUser || reqUser;
@@ -573,8 +624,8 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
       ) ||
       this.tryPickUserFromHeaderUri(
         h(headers, 'from') ||
-          h(headers, 'f') ||
-          getHeaderVal(text, ['From', 'f'])
+        h(headers, 'f') ||
+        getHeaderVal(text, ['From', 'f'])
       );
     if (ext)
       this.endpointMap.set(sourceIp, { extension: ext, last: Date.now() });
@@ -595,9 +646,9 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
     // 착신(제외 대상) 추출: To/t, Request-URI, Contact
     const toUserRaw = this.tryPickUserFromHeaderUri(
       h(headers, 'to') ||
-        h(headers, 't') ||
-        getHeaderVal(rawUnfolded, ['To', 't']) ||
-        ''
+      h(headers, 't') ||
+      getHeaderVal(rawUnfolded, ['To', 't']) ||
+      ''
     );
     const reqUserRaw = this.tryPickUserFromRequestUri(rawUnfolded);
     const contactUserRaw = this.tryPickUserFromHeaderUri(
@@ -678,8 +729,8 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
       this.tryPickUserFromRequestUri(rawUnfolded) ||
       this.tryPickUserFromHeaderUri(
         h(headers, 'to') ||
-          h(headers, 't') ||
-          getHeaderVal(rawUnfolded, ['To', 't'])
+        h(headers, 't') ||
+        getHeaderVal(rawUnfolded, ['To', 't'])
       );
     return toUser || null;
   }
@@ -714,40 +765,71 @@ class SwitchCidAdapter extends EventEmitter implements CidAdapter {
     if (!CapMod) return ipOrDev;
 
     try {
-      const device = CapMod.findDevice(ipOrDev);
+      const findDevice = getFindDevice();
+      const device = findDevice?.(ipOrDev);
       if (device) {
         logger.info(`[Switch][Adapter] Cap.findDevice 장비 검색: ${device}`);
         return device;
       }
     } catch (e: any) {
-      logger.warn(
-        `[Switch][Adapter] Cap.findDevice(${ipOrDev}) 실패: ${e.message}.`
-      );
+      logger.warn(`[Switch][Adapter] Cap.findDevice(${ipOrDev}) 실패: ${e?.message || e}`);
     }
 
     try {
-      const list = CapMod.deviceList();
-      logger.debug('[Switch][Adapter] Device List: ', list);
+      const deviceList = getDeviceList();
+      const list = deviceList ? deviceList() : [];
+      logger.debug(`[Switch][Adapter] 캡처 장비 목록: `, list);
       const match = list.find((dev: any) =>
         (dev.addresses ?? []).some((a: any) => a.addr === ipOrDev)
       );
       if (match) {
         const captureDevice = match.name ?? match.description;
         if (captureDevice) {
-          logger.info(
-            `[Switch][Adapter] Cap.deviceList 장비 찾음: ${captureDevice}`
-          );
+          logger.info(`[Switch][Adapter] Cap.deviceList 장비 찾음: ${captureDevice}`);
           return captureDevice;
         }
       }
     } catch (e: any) {
-      logger.warn(`[Switch][Adapter] Cap.deviceList() 찾기 실패: ${e.message}`);
+      logger.warn(`[Switch][Adapter] Cap.deviceList() 찾기 실패: ${e?.message || e}`);
     }
-
-    logger.warn(
-      `[Switch][Adapter] "${ipOrDev}"에 맞는 장비를 찾지 못했습니다. 식별자를 직접 사용합니다.`
-    );
+    logger.warn(`[Switch][Adapter] "${ipOrDev}"에 맞는 장비를 찾지 못했습니다. 식별자를 직접 사용합니다.`);
     return ipOrDev;
+
+    // try {
+    //   const device = CapMod.findDevice(ipOrDev);
+    //   if (device) {
+    //     logger.info(`[Switch][Adapter] Cap.findDevice 장비 검색: ${device}`);
+    //     return device;
+    //   }
+    // } catch (e: any) {
+    //   logger.warn(
+    //     `[Switch][Adapter] Cap.findDevice(${ipOrDev}) 실패: ${e.message}.`
+    //   );
+    // }
+
+    // try {
+    //   const list = CapMod.deviceList();
+    //   logger.debug('[Switch][Adapter] Device List: ', list);
+    //   const match = list.find((dev: any) =>
+    //     (dev.addresses ?? []).some((a: any) => a.addr === ipOrDev)
+    //   );
+    //   if (match) {
+    //     const captureDevice = match.name ?? match.description;
+    //     if (captureDevice) {
+    //       logger.info(
+    //         `[Switch][Adapter] Cap.deviceList 장비 찾음: ${captureDevice}`
+    //       );
+    //       return captureDevice;
+    //     }
+    //   }
+    // } catch (e: any) {
+    //   logger.warn(`[Switch][Adapter] Cap.deviceList() 찾기 실패: ${e.message}`);
+    // }
+
+    // logger.warn(
+    //   `[Switch][Adapter] "${ipOrDev}"에 맞는 장비를 찾지 못했습니다. 식별자를 직접 사용합니다.`
+    // );
+    // return ipOrDev;
   }
 }
 

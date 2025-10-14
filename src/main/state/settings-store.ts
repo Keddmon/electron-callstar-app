@@ -6,7 +6,7 @@ import { promises as fs } from 'fs';
 import { logger } from '../logs';
 import { deepMerge } from '../utils';
 /** CONSTANTS & INTERFACES & TYPES */
-import { Settings } from '../types/settings.d';
+import type { Settings } from '../types/settings';
 
 /**
  * 기본 설정
