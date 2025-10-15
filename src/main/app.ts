@@ -30,13 +30,13 @@ let mainWindow: BrowserWindow | null = null;
 let reinitLock: Promise<void> | null = null;
 
 /** ===== EARLY LOGGING/CRASH HOOKS (설치본 진단용) ===== */
-try {
-  app.setAppLogsPath();
-  app.commandLine.appendSwitch('enable-logging');
-  if (process.env.ELECTRON_DISABLE_GPU === '1') {
-    app.disableHardwareAcceleration();
-  }
-} catch { }
+// try {
+//   app.setAppLogsPath();
+//   app.commandLine.appendSwitch('enable-logging');
+//   if (process.env.ELECTRON_DISABLE_GPU === '1') {
+//     app.disableHardwareAcceleration();
+//   }
+// } catch { }
 
 process.on('uncaughtException', (e) => logger.error('[uncaughtException]', e));
 process.on('unhandledRejection', (e: any) => logger.error('[unhandledRejection]', e));
@@ -408,6 +408,8 @@ export const createApp = async () => {
     await settingsStore.init();
 
     await createWindow();
+
+    void initializeCidService({ allowSwitchOpen: false });
 
     await registerIpcHandlersSafe();
   } catch (e: any) {
