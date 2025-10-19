@@ -1,16 +1,22 @@
-/** ===== PACKAGE ===== */
-import { app, BrowserWindow, Menu } from 'electron';
+/**
+ * SECTION - Package
+ */
+import { app, BrowserWindow, Menu, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+/**!SECTION - Package */
+
+/**
+ * SECTION - Utils
+ */
 import { logger } from './logs';
-
-/** ===== FACTORY ===== */
 import { CidAdapterFactory } from './cid/cid.factory';
-
-/** ===== STORE ===== */
 import { settingsStore } from './state/settings-store';
+/**!SECTION - Utils */
 
-/** ===== IPC ===== */
+/**
+ * SECTION - IPC
+ */
 import type {
   registerCaptureIpc as RegisterCaptureIpc,
   registerCidIpc as RegisterCidIpc,
@@ -18,16 +24,25 @@ import type {
   registerPortIpc as RegisterPortIpc,
   registerSettingsIpc as RegisterSettingsIpc,
 } from './ipc';
+/**!SECTION - IPC */
 
-/** ===== CONSTANTS & INTERFACES & TYPES===== */
+/**
+ * SECTION - CONSTANTS & INTERFACES & TYPES
+ */
 import { IPC } from './constants/ipc.constant';
 import type { CidAdapter } from './interfaces/cid.interface';
 import type { CidEvent } from './types/cid';
+type InAppRules = { exact: Set<string>; suffix: string[] };
+/**!SECTION - CONSTANTS & INTERFACES & TYPES*/
 
-/** ===== GLOBALS ===== */
+/**
+ * SECTION - Globals
+ */
 let adapter: CidAdapter | null = null;
 let mainWindow: BrowserWindow | null = null;
 let reinitLock: Promise<void> | null = null;
+let oauthHandledAt = 0;
+/**!SECTION - Globals */
 
 /** ===== EARLY LOGGING/CRASH HOOKS (설치본 진단용) ===== */
 // try {
@@ -38,8 +53,13 @@ let reinitLock: Promise<void> | null = null;
 //   }
 // } catch { }
 
+/**
+ * SECTION - Process Error Hooks
+ */
 process.on('uncaughtException', (e) => logger.error('[uncaughtException]', e));
-process.on('unhandledRejection', (e: any) => logger.error('[unhandledRejection]', e));
+process.on('unhandledRejection', (e: any) =>
+  logger.error('[unhandledRejection]', e)
+);
 
 app.on('render-process-gone', (_e, wc, details) => {
   logger.error('[crash] render-process-gone', { id: wc?.id, details });
@@ -47,15 +67,44 @@ app.on('render-process-gone', (_e, wc, details) => {
 app.on('child-process-gone', (_e, details) => {
   logger.error('[crash] child-process-gone', details);
 });
+/**!SECTION - Process Error Hooks */
 
-/** ===== URL RESOLUTION ===== */
+/**
+ * SECTION - Helpers
+ */
+
+const isKakaoCallbackUrl = (raw: string) => {
+  try {
+    const u = new URL(raw);
+    const isHttp = /^https?:$/i.test(u.protocol);
+    const isBunyangin =
+      u.hostname === 'bunyangin.com' || u.hostname.endsWith('.bunyangin.com');
+    if (!isHttp || !isBunyangin) return false;
+
+    // 네가 올린 env 기준: https://bunyangin.com/?socialType=KAKAO
+    if ((u.searchParams.get('socialType') || '').toUpperCase() === 'KAKAO') {
+      return true;
+    }
+    // 표준 OAuth code 반환도 허용 (혹시 프론트가 이걸 쓰면)
+    if (u.searchParams.has('code')) return true;
+
+    // 필요하면 명시적 콜백 경로만 추가 (예: /oauth/callback, /auth/kakao/callback)
+    if (/\/oauth\/callback|\/auth\/kakao\/callback/i.test(u.pathname))
+      return true;
+
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 // CLI 인자에서 --frontend-url=... 읽기
 const parseArgvUrl = (): string | undefined => {
-  const arg = process.argv.find(a => a.startsWith('--frontend-url='));
+  const arg = process.argv.find((a) => a.startsWith('--frontend-url='));
   const v = arg?.slice('--frontend-url='.length).trim();
   if (v && /^https?:\/\//.test(v)) return v;
   return undefined;
-}
+};
 
 // 패키지의 package.json에 주입된 extraMetadata.frontendUrl 읽기
 const getPackagedFrontendUrl = (): string | undefined => {
@@ -67,10 +116,13 @@ const getPackagedFrontendUrl = (): string | undefined => {
   } catch {
     return undefined;
   }
-}
+};
 
 // 최종 Frontend URL 결정 (argv > env > packaged meta > fallback)
-const resolveFrontendUrl = (): { url: string; source: 'argv' | 'env' | 'meta' | 'fallback' } => {
+const resolveFrontendUrl = (): {
+  url: string;
+  source: 'argv' | 'env' | 'meta' | 'fallback';
+} => {
   const fromArgv = parseArgvUrl();
   if (fromArgv) return { url: fromArgv, source: 'argv' };
 
@@ -83,9 +135,8 @@ const resolveFrontendUrl = (): { url: string; source: 'argv' | 'env' | 'meta' | 
     return { url: 'https://bunyangin.com/', source: 'fallback' };
   }
   return { url: 'http://localhost:5173/#/', source: 'fallback' };
-}
+};
 
-/** ===== HELPERS ===== */
 const emitToFrontend = (channel: string, payload: any) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   try {
@@ -100,46 +151,157 @@ const emitStatus = () => {
   if (status) emitToFrontend(IPC.CID.STATUS, status);
 };
 
-/** 특정 URL 허용 여부 (bunyangin.com / localhost / 127.0.0.1) */
-const allow = (url: string): boolean => {
-  try {
-    const u = new URL(url);
-    const host = u.hostname.toLowerCase();
-    if (host === 'bunyangin.com' || host === 'www.bunyangin.com') return true;
-    if (host === 'localhost' || host === '127.0.0.1') return true;
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-/** loadURL + timeout + 실패시 대체 화면 */
+/** loadURL + timeout + fallback screen */
 const safeLoad = async (win: BrowserWindow, url: string, timeoutMs = 10000) => {
   let timer: NodeJS.Timeout | null = null;
   try {
     const p = win.loadURL(url);
     const t = new Promise((_r, rej) => {
-      timer = setTimeout(() => rej(new Error(`loadURL timeout: ${url}`)), timeoutMs);
+      timer = setTimeout(
+        () => rej(new Error(`loadURL timeout: ${url}`)),
+        timeoutMs
+      );
     });
     await Promise.race([p, t]);
   } catch (e) {
     logger.error('[load] failed:', e);
     try {
       await win.loadURL(
-        'data:text/html;charset=utf-8,' + encodeURIComponent(`
+        'data:text/html;charset=utf-8,' +
+          encodeURIComponent(`
           <h2 style="font-family:sans-serif">네트워크/로드 오류</h2>
           <p>페이지를 불러오지 못했습니다.</p>
           <pre style="white-space:pre-wrap">${String(e)}</pre>
         `)
       );
-    } catch { }
+    } catch {}
   } finally {
     if (timer) clearTimeout(timer);
     if (!win.isVisible()) win.show();
   }
-}
+};
 
-/** ===== 서비스 초기화 ===== */
+/** 앱 도메인 화이트리스트 생성 (인앱 유지 대상) */
+const buildAppHosts = (targetUrl: string): InAppRules => {
+  const exact = new Set<string>();
+  const suffix: string[] = [];
+
+  try {
+    const host = new URL(targetUrl).hostname.toLowerCase();
+    if (host) {
+      exact.add(host);
+      // 자사 도메인 전체 서브도메인 허용 (예: *.bunyangin.com)
+      const root = host.split('.').slice(-2).join('.');
+      if (root === 'bunyangin.com') {
+        exact.add('bunyangin.com');
+        exact.add('www.bunyangin.com');
+        suffix.push('.bunyangin.com');
+      }
+    }
+  } catch {}
+
+  // 개발 환경용
+  exact.add('localhost');
+  exact.add('127.0.0.1');
+
+  // 카카오 OAuth: 다수 서브도메인 사용 가능성 → *.kakao.com 전체 허용
+  exact.add('kakao.com');
+  suffix.push('.kakao.com');
+  exact.add('kakaocdn.net');
+  suffix.push('.kakaocdn.net');
+
+  // ★ Kakao-DAUM SSO 체인 추가
+  exact.add('daum.net');
+  suffix.push('.daum.net');
+  exact.add('daumcdn.net');
+  suffix.push('.daumcdn.net');
+
+  // (선택) 혹시 모를 한국 도메인 플로우 대비
+  // exact.add('kakao.co.kr');   suffix.push('.kakao.co.kr');
+
+  return { exact, suffix };
+};
+
+/** 인앱 유지 여부 판정 */
+const createInAppUrlChecker = (rules: InAppRules) => (url: string) => {
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/i.test(u.protocol)) return false;
+    const h = u.hostname.toLowerCase();
+    if (rules.exact.has(h)) return true;
+    return rules.suffix.some((suf) => h.endsWith(suf));
+  } catch {
+    return false;
+  }
+};
+
+/** 외부 브라우저로 열기 */
+const openExternally = (url: string, e?: Electron.Event) => {
+  e?.preventDefault();
+  shell
+    .openExternal(url)
+    .catch((err) => logger.warn('[openExternal] Error:', err));
+};
+
+// intent://...#Intent;...;S.browser_fallback_url=...;end 형태나
+// 기타 문자열 안의 첫 https://... 를 뽑아내서 반환
+const extractHttpFallback = (raw: string): string | null => {
+  try {
+    const u = new URL(raw);
+    if (/^https?:$/i.test(u.protocol)) return u.toString();
+  } catch {}
+  const m = raw.match(/browser_fallback_url=([^;#]+)/i);
+  if (m?.[1]) {
+    try {
+      const decoded = decodeURIComponent(m[1]);
+      if (/^https?:\/\//i.test(decoded)) return decoded;
+    } catch {}
+  }
+  const m2 = raw.match(/https?:\/\/[^\s'"]+/i);
+  if (m2?.[0]) return m2[0];
+  return null;
+};
+
+const navigateToCallbackThenCleanup = (callbackUrl: string) => {
+  try {
+    // 콜백 URL로 실제 로드 → 프론트가 ?socialType=KAKAO / code 읽을 수 있게
+    mainWindow?.loadURL(callbackUrl).catch(() => {});
+    logger.info('[auth] navigate to callback:', callbackUrl);
+
+    // 잠깐 기다린 다음, 아직 콜백 URL이면 파라미터만 제거(히스토리 치환)
+    setTimeout(() => {
+      const cur = mainWindow?.webContents.getURL() ?? '';
+      if (isKakaoCallbackUrl(cur)) {
+        mainWindow?.webContents
+          .executeJavaScript(`history.replaceState(null, "", "/#/");`)
+          .catch(() => {});
+        logger.info('[auth] cleanup URL -> "#/"');
+      }
+    }, 1500); // 1~2초면 충분. 필요시 조정
+  } catch (e) {
+    logger.warn('[auth] navigateToCallbackThenCleanup failed:', e);
+  }
+};
+
+const maybeCloseAuthPopup = (wc: Electron.WebContents, url: string) => {
+  if (!isKakaoCallbackUrl(url)) return;
+
+  const now = Date.now();
+  if (now - oauthHandledAt < 3000) return; // 루프 방지
+  oauthHandledAt = now;
+
+  const bw = BrowserWindow.fromWebContents(wc);
+  const isPopup = !!(bw && mainWindow && bw.id !== mainWindow.id);
+  if (isPopup) bw!.close();
+
+  // ★ 핵심: 콜백으로 먼저 로드 → 프론트가 쿼리 읽고 로그인 처리
+  navigateToCallbackThenCleanup(url);
+};
+/**!SECTION - Helpers */
+
+/**
+ * SECTION - CID Service
+ */
 export async function initializeCidService({ allowSwitchOpen = false } = {}) {
   if (reinitLock) await reinitLock;
 
@@ -161,13 +323,23 @@ export async function initializeCidService({ allowSwitchOpen = false } = {}) {
 
     logger.info(`[App] 설정 기반 어댑터 생성 시도: ${cidType}`);
 
-    if (cidType === 'callstar' && (!callstarPort || callstarPort.trim() === '')) {
-      logger.warn('[App] callstar 선택됨: 포트(callstarPort) 미지정 → 사용자 선택 대기');
+    if (
+      cidType === 'callstar' &&
+      (!callstarPort || callstarPort.trim() === '')
+    ) {
+      logger.warn(
+        '[App] callstar 선택됨: 포트(callstarPort) 미지정 → 사용자 선택 대기'
+      );
       emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType: 'callstar' });
       return;
     }
-    if (cidType === 'switch' && (!captureDevice || captureDevice.trim() === '')) {
-      logger.warn('[App] switch 선택됨: 캡처 장치(captureDevice) 미지정 → 사용자 선택 대기');
+    if (
+      cidType === 'switch' &&
+      (!captureDevice || captureDevice.trim() === '')
+    ) {
+      logger.warn(
+        '[App] switch 선택됨: 캡처 장치(captureDevice) 미지정 → 사용자 선택 대기'
+      );
       emitToFrontend(IPC.CID.STATUS, { isOpen: false, cidType: 'switch' });
       return;
     }
@@ -223,15 +395,24 @@ export async function initializeCidService({ allowSwitchOpen = false } = {}) {
     reinitLock = null;
   }
 
-  logger.info('[App] CID 서비스 초기화 완료. 현재 어댑터: ', adapter ? adapter : '없음');
+  logger.info(
+    '[App] CID 서비스 초기화 완료. 현재 어댑터: ',
+    adapter ? adapter : '없음'
+  );
 }
+/**!SECTION - CID Service */
 
-/** ===== IPC 등록 ===== */
+/**
+ * SECTION - IPC Registration
+ */
 const registerIpcHandlersSafe = async () => {
   try {
     const ipc = await import('./ipc');
     (ipc.registerCaptureIpc as typeof RegisterCaptureIpc)();
-    (ipc.registerCidIpc as typeof RegisterCidIpc)(() => adapter, () => mainWindow);
+    (ipc.registerCidIpc as typeof RegisterCidIpc)(
+      () => adapter,
+      () => mainWindow
+    );
     (ipc.registerSettingsIpc as typeof RegisterSettingsIpc)();
     (ipc.registerPortIpc as typeof RegisterPortIpc)();
     (ipc.registerNavIpc as typeof RegisterNavIpc)(() => mainWindow);
@@ -239,9 +420,12 @@ const registerIpcHandlersSafe = async () => {
   } catch (e: any) {
     logger.error('[App] IPC 핸들러 등록 실패', e?.message || e);
   }
-}
+};
+/**!SECTION - IPC Registration */
 
-/** ===== 프로그램 라이프 사이클 ===== */
+/**
+ * SECTION - App Life Cycle
+ */
 const registerAppLifecycleEvents = () => {
   app.on('window-all-closed', () => {
     logger.info('All windows closed, quitting application.');
@@ -254,8 +438,11 @@ const registerAppLifecycleEvents = () => {
     }
   });
 };
+/**!SECTION - App Life Cycle */
 
-/** ===== 프로그램 뒤로가기/앞으로가기 ===== */
+/**
+ * SECTION - NAV Controls
+ */
 const bindNavControls = (win: BrowserWindow) => {
   const wc = win.webContents;
 
@@ -292,8 +479,11 @@ const bindNavControls = (win: BrowserWindow) => {
 
   emitNavState();
 };
+/**!SECTION - NAV Controls */
 
-/** ===== Window(화면) 생성 ===== */
+/**
+ * SECTION - Window (Main)
+ */
 const createWindow = async () => {
   logger.info('[App] Window 생성: Window 만드는 중...');
   logger.info('[paths] userData =', app.getPath('userData'));
@@ -301,7 +491,11 @@ const createWindow = async () => {
   const { window: windowSettings } = settingsStore.get();
 
   const preloadPath = path.resolve(__dirname, 'preload.js');
-  logger.debug(`[App] preloadPath = ${preloadPath}, exists? = ${fs.existsSync(preloadPath)}`);
+  logger.info(
+    `[App] preloadPath = ${preloadPath}, exists? = ${fs.existsSync(
+      preloadPath
+    )}`
+  );
 
   mainWindow = new BrowserWindow({
     width: windowSettings?.width ?? 1200,
@@ -318,40 +512,222 @@ const createWindow = async () => {
       spellcheck: false,
       sandbox: false,
       webSecurity: true,
+      partition: 'persist:bunyangin',
     },
   });
 
   if (!mainWindow.isVisible()) mainWindow.show();
 
-  // 외부/새창/내비게이션 가드 (bunyangin/localhost만 허용)
+  const { url: targetUrl, source } = resolveFrontendUrl();
+  logger.info(`[App] target FRONTEND URL =`, targetUrl, `(source=${source})`);
+
+  const INAPP_RULES = buildAppHosts(targetUrl);
+  const isInAppUrl = createInAppUrlChecker(INAPP_RULES);
+
+  const ses = mainWindow.webContents.session;
+  ses.webRequest.onBeforeRequest(
+    { urls: ['*://*/*'] }, // <= 표준 스킴만 필터
+    (details, callback) => {
+      const raw = details.url;
+      // 표준 http(s)면 그대로
+      if (/^https?:\/\//i.test(raw)) return callback({});
+
+      // 비-HTTP (intent://, kakaolink:// 등) → https fallback 시도
+      const fb = extractHttpFallback(raw);
+      if (fb && isInAppUrl(fb)) {
+        console.log('[onBeforeRequest] redirect →', fb);
+        return callback({ redirectURL: fb }); // 인앱으로 리다이렉트
+      }
+
+      // fallback 없으면 손대지 않음 (이후 will-navigate 등에서 외부로 열릴 수 있음)
+      return callback({});
+    }
+  );
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    return { action: allow(url) ? 'allow' : 'deny' };
-  });
-  mainWindow.webContents.on('will-navigate', (e, url) => {
-    if (!allow(url)) e.preventDefault();
+    if (url === 'about:blank' || isInAppUrl(url)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          parent: mainWindow!,
+          modal: false,
+          autoHideMenuBar: true,
+          backgroundColor: '#ffffff',
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: false,
+            webSecurity: true,
+            partition: 'persist:bunyangin',
+          },
+        },
+      };
+    }
+    openExternally(url);
+    return { action: 'deny' };
   });
 
-  // 창 표시 안정화
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    // 메인 윈도우에서도 OAuth 콜백을 감지(팝업 한정 X)
+    maybeCloseAuthPopup(mainWindow!.webContents, url);
+
+    // 인앱 유지 도메면 그대로 진행
+    if (isInAppUrl(url)) {
+      logger.info('[navigate in-app]', url);
+      console.log('[navigate in-app]', url);
+      return;
+    }
+
+    // 비-HTTP 스킴(intent:// 등) → https fallback을 뽑아서 인앱으로 처리
+    const fb = extractHttpFallback(url);
+    if (fb && isInAppUrl(fb)) {
+      e.preventDefault();
+      logger.info('[navigate fallback→in-app]', fb);
+      console.log('[navigate fallback→in-app]', fb);
+      mainWindow?.loadURL(fb).catch(() => {});
+      return;
+    }
+
+    // 그 외는 외부 브라우저
+    console.log('[EXTERNAL NAV] In-app check failed. Opening externally:', url);
+    logger.error(
+      '[EXTERNAL NAV] In-app check failed. Opening externally:',
+      url
+    );
+    openExternally(url, e);
+  });
+
+  mainWindow.webContents.on('will-redirect', (e, url) => {
+    // 콜백 감지
+    maybeCloseAuthPopup(mainWindow!.webContents, url);
+
+    // 인앱 유지 도메인이면 그대로
+    if (isInAppUrl(url)) {
+      console.log('[redirect in-app]', url);
+      logger.info('[redirect in-app]', url);
+      return;
+    }
+
+    // intent:// 등 → https fallback 보정 후 인앱 유지 가능한 경우엔 인앱으로
+    const fb = extractHttpFallback(url);
+    if (fb && isInAppUrl(fb)) {
+      e.preventDefault();
+      logger.info('[redirect fallback→in-app]', fb);
+      mainWindow?.loadURL(fb).catch(() => {});
+      return;
+    }
+
+    // 나머지는 외부 브라우저
+    logger.error(
+      '[EXTERNAL REDIRECT] In-app check failed. Opening externally:',
+      url
+    );
+    openExternally(url, e);
+  });
+
+  mainWindow.webContents.on('did-navigate', (_e, url) => {
+    maybeCloseAuthPopup(mainWindow!.webContents, url);
+  });
+  mainWindow.webContents.on('did-navigate-in-page', (_e, url) => {
+    maybeCloseAuthPopup(mainWindow!.webContents, url);
+  });
+
+  await safeLoad(mainWindow, targetUrl, 10000);
+
+  mainWindow.webContents.on('did-create-window', (child) => {
+    child.webContents.setWindowOpenHandler(({ url }) => {
+      if (url === 'about:blank' || isInAppUrl(url)) {
+        logger.info('[popup] allow window.open → in-app:', url);
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            parent: mainWindow!,
+            modal: false,
+            autoHideMenuBar: true,
+            backgroundColor: '#ffffff',
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true,
+              sandbox: false,
+              webSecurity: true,
+              partition: 'persist:bunyangin', // ← 팝업도 동일 세션
+            },
+          },
+        };
+      }
+      logger.info('[popup] open externally:', url);
+      shell
+        .openExternal(url)
+        .catch((err) => logger.warn('[openExternal:child]', err));
+      return { action: 'deny' };
+    });
+
+    child.webContents.on('will-navigate', (e, url) => {
+      if (isInAppUrl(url)) {
+        maybeCloseAuthPopup(child.webContents, url);
+        return;
+      }
+      const fb = extractHttpFallback(url);
+      if (fb && isInAppUrl(fb)) {
+        e.preventDefault();
+        logger.info('[popup navigate fallback→in-app]', fb);
+        child.loadURL(fb).catch(() => {});
+        return;
+      }
+      openExternally(url, e);
+    });
+
+    child.webContents.on('will-redirect', (e, url) => {
+      // 콜백 감지: 팝업 컨텍스트 기준으로 처리
+      maybeCloseAuthPopup(child.webContents, url);
+
+      if (isInAppUrl(url)) {
+        logger.info('[popup redirect in-app]', url);
+        return;
+      }
+
+      const fb = extractHttpFallback(url);
+      if (fb && isInAppUrl(fb)) {
+        e.preventDefault();
+        logger.info('[popup redirect fallback→in-app]', fb);
+        // 팝업 자신을 fallback으로 이동
+        child.loadURL(fb).catch(() => {});
+        return;
+      }
+
+      openExternally(url, e);
+    });
+
+    child.webContents.on('did-navigate', (_e, url) => {
+      maybeCloseAuthPopup(child.webContents, url);
+    });
+    child.webContents.on('did-navigate-in-page', (_e, url) => {
+      maybeCloseAuthPopup(child.webContents, url);
+    });
+  });
+
   mainWindow.once('ready-to-show', () => {
     if (!mainWindow?.isVisible()) mainWindow?.show();
   });
+
   mainWindow.webContents.on('did-finish-load', () => {
-    logger.debug('[App] did-finish-load');
+    logger.info('[App] did-finish-load');
     if (!mainWindow?.isVisible()) mainWindow?.show();
   });
+
   mainWindow.webContents.on('did-fail-load', async (_e, code, desc, url) => {
     logger.error('[app] did-fail-load', { code, desc, url });
     try {
       await mainWindow?.loadURL(
         'data:text/html;charset=utf-8,' +
-        encodeURIComponent(`
+          encodeURIComponent(`
             <h1>네트워크 오류</h1>
             <p>${desc} (code: ${code})</p>
             <p>URL: ${url}</p>
             <p>인터넷 연결 또는 방화벽/프록시를 확인하세요.</p>
           `)
       );
-    } catch { }
+    } catch {}
     if (!mainWindow?.isVisible()) mainWindow?.show();
   });
 
@@ -369,19 +745,12 @@ const createWindow = async () => {
     }
   });
 
-  // 히스토리/단축키/마우스 버튼 바인딩
   bindNavControls(mainWindow);
-
-  // 최종 URL 로드
-  const { url: targetUrl, source } = resolveFrontendUrl();
-  logger.info(`[App] target FRONTEND URL =`, targetUrl, `(source=${source})`);
-  await safeLoad(mainWindow, targetUrl, 10000);
 
   if (process.env.ELECTRON_DEBUG === '1') {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
-  // 렌더러 로드 완료 후 CID 초기화
   mainWindow.webContents.once('did-finish-load', () => {
     void initializeCidService({ allowSwitchOpen: false });
   });
@@ -390,37 +759,44 @@ const createWindow = async () => {
     mainWindow = null;
   });
 };
+/**!SECTION - Window (Main) */
 
-/** ===== 앱 생성(메인) ===== */
+/**
+ * SECTION - App Entry
+ */
 export const createApp = async () => {
   try {
     if (!app.isReady()) {
-      logger.info('[App] 앱 준비 안됨, 기다리기...');
+      logger.info('[App] not ready, waiting...');
       await app.whenReady();
     }
-    logger.info('[App] 앱 준비 됨, window 우선 생성');
+
+    logger.info('[App] ready, creating window first');
     if (process.platform === 'darwin') {
       Menu.setApplicationMenu(null);
     }
 
-    // 라이프사이클 & 설정 스토어
     registerAppLifecycleEvents();
     await settingsStore.init();
 
     await createWindow();
-
-    void initializeCidService({ allowSwitchOpen: false });
-
     await registerIpcHandlersSafe();
   } catch (e: any) {
-    logger.error('[App] createApp 에러 발생:', e?.message || e);
+    logger.error('[App] createApp error:', e?.message || e);
     try {
-      const fallback = new BrowserWindow({ show: true, backgroundColor: '#fff' });
-      await fallback.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(`
-        <h2 style="font-family:sans-serif">앱 시작 실패</h2>
-        <pre style="white-space:pre-wrap">${String(e?.message || e)}</pre>
-        <p>로그 폴더: ${app.getPath('logs')}</p>
-      `));
-    } catch { }
+      const fallback = new BrowserWindow({
+        show: true,
+        backgroundColor: '#fff',
+      });
+      await fallback.loadURL(
+        'data:text/html;charset=utf-8,' +
+          encodeURIComponent(`
+            <h2 style="font-family:sans-serif">앱 시작 실패</h2>
+            <pre style="white-space:pre-wrap">${String(e?.message || e)}</pre>
+            <p>로그 폴더: ${app.getPath('logs')}</p>
+          `)
+      );
+    } catch {}
   }
 };
+/**!SECTION - App Entry */
