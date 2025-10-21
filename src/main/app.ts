@@ -72,25 +72,38 @@ app.on('child-process-gone', (_e, details) => {
 /**
  * SECTION - Helpers
  */
+const getHashParams = (u: URL) => {
+  const h = u.hash || '';
+  const qIdx = h.indexOf('?');
+  if (qIdx === -1) return new URLSearchParams();
+  return new URLSearchParams(h.slice(qIdx + 1));
+};
 
 const isKakaoCallbackUrl = (raw: string) => {
   try {
     const u = new URL(raw);
-    const isHttp = /^https?:$/i.test(u.protocol);
+    if (!/^https?:$/i.test(u.protocol)) return false;
+    const host = u.hostname.toLowerCase();
     const isBunyangin =
-      u.hostname === 'bunyangin.com' || u.hostname.endsWith('.bunyangin.com');
-    if (!isHttp || !isBunyangin) return false;
+      host === 'bunyangin.com' || host.endsWith('.bunyangin.com');
+    if (!isBunyangin) return false;
 
-    // 네가 올린 env 기준: https://bunyangin.com/?socialType=KAKAO
-    if ((u.searchParams.get('socialType') || '').toUpperCase() === 'KAKAO') {
-      return true;
-    }
-    // 표준 OAuth code 반환도 허용 (혹시 프론트가 이걸 쓰면)
-    if (u.searchParams.has('code')) return true;
+    const sp = u.searchParams;
+    const hp = getHashParams(u);
 
-    // 필요하면 명시적 콜백 경로만 추가 (예: /oauth/callback, /auth/kakao/callback)
+    const socialType = (
+      sp.get('socialType') ||
+      hp.get('socialType') ||
+      ''
+    ).toUpperCase();
+    const hasCode = sp.has('code') || hp.has('code');
+
+    if (socialType === 'KAKAO' || hasCode) return true;
+
+    // 라우트 패턴도 안전망으로 허용
     if (/\/oauth\/callback|\/auth\/kakao\/callback/i.test(u.pathname))
       return true;
+    if (/#\/oauth\/kakao/i.test(u.hash)) return true;
 
     return false;
   } catch {
@@ -228,6 +241,9 @@ const createInAppUrlChecker = (rules: InAppRules) => (url: string) => {
     const u = new URL(url);
     if (!/^https?:$/i.test(u.protocol)) return false;
     const h = u.hostname.toLowerCase();
+
+    if (h === 'bunyangin.com' || h.endsWith('.bunyangin.com')) return true;
+
     if (rules.exact.has(h)) return true;
     return rules.suffix.some((suf) => h.endsWith(suf));
   } catch {
@@ -264,11 +280,11 @@ const extractHttpFallback = (raw: string): string | null => {
 
 const navigateToCallbackThenCleanup = (callbackUrl: string) => {
   try {
-    // 콜백 URL로 실제 로드 → 프론트가 ?socialType=KAKAO / code 읽을 수 있게
+    // 1) 콜백 주소로 실제 이동 → SPA가 code/socialType 읽고 토큰 교환
     mainWindow?.loadURL(callbackUrl).catch(() => {});
     logger.info('[auth] navigate to callback:', callbackUrl);
 
-    // 잠깐 기다린 다음, 아직 콜백 URL이면 파라미터만 제거(히스토리 치환)
+    // 2) 잠시 후 주소만 깔끔하게 정리
     setTimeout(() => {
       const cur = mainWindow?.webContents.getURL() ?? '';
       if (isKakaoCallbackUrl(cur)) {
@@ -277,7 +293,7 @@ const navigateToCallbackThenCleanup = (callbackUrl: string) => {
           .catch(() => {});
         logger.info('[auth] cleanup URL -> "#/"');
       }
-    }, 1500); // 1~2초면 충분. 필요시 조정
+    }, 1500);
   } catch (e) {
     logger.warn('[auth] navigateToCallbackThenCleanup failed:', e);
   }
@@ -568,6 +584,12 @@ const createWindow = async () => {
   });
 
   mainWindow.webContents.on('will-navigate', (e, url) => {
+    if (isKakaoCallbackUrl(url)) {
+      e.preventDefault();
+      navigateToCallbackThenCleanup(url);
+      return;
+    }
+
     // 메인 윈도우에서도 OAuth 콜백을 감지(팝업 한정 X)
     maybeCloseAuthPopup(mainWindow!.webContents, url);
 
@@ -598,6 +620,12 @@ const createWindow = async () => {
   });
 
   mainWindow.webContents.on('will-redirect', (e, url) => {
+    if (isKakaoCallbackUrl(url)) {
+      e.preventDefault();
+      navigateToCallbackThenCleanup(url);
+      return;
+    }
+
     // 콜백 감지
     maybeCloseAuthPopup(mainWindow!.webContents, url);
 
@@ -663,10 +691,17 @@ const createWindow = async () => {
     });
 
     child.webContents.on('will-navigate', (e, url) => {
+      if (isKakaoCallbackUrl(url)) {
+        e.preventDefault();
+        navigateToCallbackThenCleanup(url);
+        return;
+      }
+
       if (isInAppUrl(url)) {
         maybeCloseAuthPopup(child.webContents, url);
         return;
       }
+
       const fb = extractHttpFallback(url);
       if (fb && isInAppUrl(fb)) {
         e.preventDefault();
@@ -678,6 +713,12 @@ const createWindow = async () => {
     });
 
     child.webContents.on('will-redirect', (e, url) => {
+      if (isKakaoCallbackUrl(url)) {
+        e.preventDefault();
+        navigateToCallbackThenCleanup(url);
+        return;
+      }
+
       // 콜백 감지: 팝업 컨텍스트 기준으로 처리
       maybeCloseAuthPopup(child.webContents, url);
 
