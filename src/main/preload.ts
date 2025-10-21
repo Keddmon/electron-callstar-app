@@ -28,27 +28,27 @@ const IPC = {
 
 type CidEvent =
   | {
-    type: 'incoming';
-    payload: string | undefined;
-    callId?: string;
-    channel?: string;
-    extension?: string;
-  }
+      type: 'incoming';
+      payload: string | undefined;
+      callId?: string;
+      channel?: string;
+      extension?: string;
+    }
   | {
-    type: 'masked';
-    payload: 'PRIVATE' | 'PUBLIC' | 'UNKNOWN';
-    callId?: string;
-    channel?: string;
-    extension?: string;
-  }
+      type: 'masked';
+      payload: 'PRIVATE' | 'PUBLIC' | 'UNKNOWN';
+      callId?: string;
+      channel?: string;
+      extension?: string;
+    }
   | { type: 'answered'; callId?: string; channel?: string; extension?: string }
   | {
-    type: 'end';
-    reason?: 'bye' | 'cancel' | 'failed' | 'timeout';
-    callId?: string;
-    channel?: string;
-    extension?: string;
-  }
+      type: 'end';
+      reason?: 'bye' | 'cancel' | 'failed' | 'timeout';
+      callId?: string;
+      channel?: string;
+      extension?: string;
+    }
   | { type: 'device-info'; payload: string | null; extension?: string }
   | { type: 'dial-out'; payload: string; callId?: string; extension?: string }
   | { type: 'dial-complete'; callId?: string; extension?: string }

@@ -86,8 +86,8 @@ const registerCidIpc = (
           process.platform === 'win32'
             ? 'Npcap(WinPcap 호환 모드) 설치 및 관리자 권한을 확인하세요.'
             : process.platform === 'darwin'
-              ? 'macOS에서 /dev/bpf* 권한이 필요합니다. 관리자 권한 또는 access_bpf 그룹 설정을 확인하세요.'
-              : '패킷 캡처 권한/드라이버를 확인하세요(예: root 또는 wireshark 그룹, setcap).';
+            ? 'macOS에서 /dev/bpf* 권한이 필요합니다. 관리자 권한 또는 access_bpf 그룹 설정을 확인하세요.'
+            : '패킷 캡처 권한/드라이버를 확인하세요(예: root 또는 wireshark 그룹, setcap).';
         return { data: status, error: `캡처 장치를 열 수 없습니다. ${hint}` };
       }
 
@@ -196,8 +196,8 @@ const registerCidIpc = (
           process.platform === 'win32'
             ? 'Npcap(WinPcap 호환 모드) 설치 및 관리자 권한을 확인하세요.'
             : process.platform === 'darwin'
-              ? 'macOS에서 /dev/bpf* 권한이 필요합니다. 관리자 권한 또는 access_bpf 그룹 설정을 확인하세요.'
-              : '패킷 캡처 권한/드라이버를 확인하세요(예: root 또는 wireshark 그룹, setcap).';
+            ? 'macOS에서 /dev/bpf* 권한이 필요합니다. 관리자 권한 또는 access_bpf 그룹 설정을 확인하세요.'
+            : '패킷 캡처 권한/드라이버를 확인하세요(예: root 또는 wireshark 그룹, setcap).';
 
         sendToFrontend(IPC.CID.STATUS, status);
         return { data: status, error: `캡처 장치를 열 수 없습니다. ${hint}` };
@@ -212,7 +212,7 @@ const registerCidIpc = (
   });
 
   /** TEST */
-  ipcm.handle(IPC.CID.INCOMING, async (_e, { payload }): Promise<any> => {
+  ipcm.handle(IPC.CID.INCOMING, async (_e, payload: string): Promise<any> => {
     const adapter = getAdapter();
     try {
       const result = await adapter?.incoming(payload);
