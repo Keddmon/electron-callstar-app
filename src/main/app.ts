@@ -72,6 +72,7 @@ app.on('child-process-gone', (_e, details) => {
 /**
  * SECTION - Helpers
  */
+// Hash 파라미터 추출
 const getHashParams = (u: URL) => {
   const h = u.hash || '';
   const qIdx = h.indexOf('?');
@@ -79,6 +80,7 @@ const getHashParams = (u: URL) => {
   return new URLSearchParams(h.slice(qIdx + 1));
 };
 
+// 카카오 로그인 주소인지 확인
 const isKakaoCallbackUrl = (raw: string) => {
   try {
     const u = new URL(raw);
@@ -100,7 +102,6 @@ const isKakaoCallbackUrl = (raw: string) => {
 
     if (socialType === 'KAKAO' || hasCode) return true;
 
-    // 라우트 패턴도 안전망으로 허용
     if (/\/oauth\/callback|\/auth\/kakao\/callback/i.test(u.pathname))
       return true;
     if (/#\/oauth\/kakao/i.test(u.hash)) return true;
@@ -150,6 +151,7 @@ const resolveFrontendUrl = (): {
   return { url: 'http://localhost:5173/#/', source: 'fallback' };
 };
 
+// Frontend 이벤트 확정(보내기)
 const emitToFrontend = (channel: string, payload: any) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   try {
@@ -159,12 +161,13 @@ const emitToFrontend = (channel: string, payload: any) => {
   }
 };
 
+// 상태 확정(보내기)
 const emitStatus = () => {
   const status = adapter?.getStatus?.();
   if (status) emitToFrontend(IPC.CID.STATUS, status);
 };
 
-/** loadURL + timeout + fallback screen */
+// loadURL + timeout + fallback screen
 const safeLoad = async (win: BrowserWindow, url: string, timeoutMs = 10000) => {
   let timer: NodeJS.Timeout | null = null;
   try {
@@ -194,7 +197,7 @@ const safeLoad = async (win: BrowserWindow, url: string, timeoutMs = 10000) => {
   }
 };
 
-/** 앱 도메인 화이트리스트 생성 (인앱 유지 대상) */
+// 앱 도메인 화이트리스트 생성 (인앱 유지 대상)
 const buildAppHosts = (targetUrl: string): InAppRules => {
   const exact = new Set<string>();
   const suffix: string[] = [];
@@ -235,7 +238,7 @@ const buildAppHosts = (targetUrl: string): InAppRules => {
   return { exact, suffix };
 };
 
-/** 인앱 유지 여부 판정 */
+// 인앱 유지 여부 판정
 const createInAppUrlChecker = (rules: InAppRules) => (url: string) => {
   try {
     const u = new URL(url);
@@ -251,7 +254,7 @@ const createInAppUrlChecker = (rules: InAppRules) => (url: string) => {
   }
 };
 
-/** 외부 브라우저로 열기 */
+// 외부 브라우저로 열기
 const openExternally = (url: string, e?: Electron.Event) => {
   e?.preventDefault();
   shell
@@ -259,8 +262,6 @@ const openExternally = (url: string, e?: Electron.Event) => {
     .catch((err) => logger.warn('[openExternal] Error:', err));
 };
 
-// intent://...#Intent;...;S.browser_fallback_url=...;end 형태나
-// 기타 문자열 안의 첫 https://... 를 뽑아내서 반환
 const extractHttpFallback = (raw: string): string | null => {
   try {
     const u = new URL(raw);
@@ -280,11 +281,9 @@ const extractHttpFallback = (raw: string): string | null => {
 
 const navigateToCallbackThenCleanup = (callbackUrl: string) => {
   try {
-    // 1) 콜백 주소로 실제 이동 → SPA가 code/socialType 읽고 토큰 교환
     mainWindow?.loadURL(callbackUrl).catch(() => {});
     logger.info('[auth] navigate to callback:', callbackUrl);
 
-    // 2) 잠시 후 주소만 깔끔하게 정리
     setTimeout(() => {
       const cur = mainWindow?.webContents.getURL() ?? '';
       if (isKakaoCallbackUrl(cur)) {
@@ -310,7 +309,6 @@ const maybeCloseAuthPopup = (wc: Electron.WebContents, url: string) => {
   const isPopup = !!(bw && mainWindow && bw.id !== mainWindow.id);
   if (isPopup) bw!.close();
 
-  // ★ 핵심: 콜백으로 먼저 로드 → 프론트가 쿼리 읽고 로그인 처리
   navigateToCallbackThenCleanup(url);
 };
 /**!SECTION - Helpers */
@@ -541,24 +539,19 @@ const createWindow = async () => {
   const isInAppUrl = createInAppUrlChecker(INAPP_RULES);
 
   const ses = mainWindow.webContents.session;
-  ses.webRequest.onBeforeRequest(
-    { urls: ['*://*/*'] }, // <= 표준 스킴만 필터
-    (details, callback) => {
-      const raw = details.url;
-      // 표준 http(s)면 그대로
-      if (/^https?:\/\//i.test(raw)) return callback({});
+  ses.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
+    const raw = details.url;
+    // 표준 http(s)
+    if (/^https?:\/\//i.test(raw)) return callback({});
 
-      // 비-HTTP (intent://, kakaolink:// 등) → https fallback 시도
-      const fb = extractHttpFallback(raw);
-      if (fb && isInAppUrl(fb)) {
-        console.log('[onBeforeRequest] redirect →', fb);
-        return callback({ redirectURL: fb }); // 인앱으로 리다이렉트
-      }
-
-      // fallback 없으면 손대지 않음 (이후 will-navigate 등에서 외부로 열릴 수 있음)
-      return callback({});
+    // 비-HTTP (intent://, kakaolink:// 등)
+    const fb = extractHttpFallback(raw);
+    if (fb && isInAppUrl(fb)) {
+      return callback({ redirectURL: fb }); // 인앱으로 리다이렉트
     }
-  );
+
+    return callback({});
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url === 'about:blank' || isInAppUrl(url)) {
@@ -590,28 +583,24 @@ const createWindow = async () => {
       return;
     }
 
-    // 메인 윈도우에서도 OAuth 콜백을 감지(팝업 한정 X)
     maybeCloseAuthPopup(mainWindow!.webContents, url);
 
-    // 인앱 유지 도메면 그대로 진행
+    // 인앱 유지 도메인
     if (isInAppUrl(url)) {
       logger.info('[navigate in-app]', url);
-      console.log('[navigate in-app]', url);
       return;
     }
 
-    // 비-HTTP 스킴(intent:// 등) → https fallback을 뽑아서 인앱으로 처리
+    // 비-HTTP 스킴(intent:// 등)
     const fb = extractHttpFallback(url);
     if (fb && isInAppUrl(fb)) {
       e.preventDefault();
       logger.info('[navigate fallback→in-app]', fb);
-      console.log('[navigate fallback→in-app]', fb);
       mainWindow?.loadURL(fb).catch(() => {});
       return;
     }
 
     // 그 외는 외부 브라우저
-    console.log('[EXTERNAL NAV] In-app check failed. Opening externally:', url);
     logger.error(
       '[EXTERNAL NAV] In-app check failed. Opening externally:',
       url
@@ -629,14 +618,13 @@ const createWindow = async () => {
     // 콜백 감지
     maybeCloseAuthPopup(mainWindow!.webContents, url);
 
-    // 인앱 유지 도메인이면 그대로
+    // 인앱 유지 도메인
     if (isInAppUrl(url)) {
-      console.log('[redirect in-app]', url);
       logger.info('[redirect in-app]', url);
       return;
     }
 
-    // intent:// 등 → https fallback 보정 후 인앱 유지 가능한 경우엔 인앱으로
+    // 비-HTTP 스킴(intent:// 등)
     const fb = extractHttpFallback(url);
     if (fb && isInAppUrl(fb)) {
       e.preventDefault();
@@ -678,7 +666,7 @@ const createWindow = async () => {
               contextIsolation: true,
               sandbox: false,
               webSecurity: true,
-              partition: 'persist:bunyangin', // ← 팝업도 동일 세션
+              partition: 'persist:bunyangin',
             },
           },
         };
@@ -719,7 +707,6 @@ const createWindow = async () => {
         return;
       }
 
-      // 콜백 감지: 팝업 컨텍스트 기준으로 처리
       maybeCloseAuthPopup(child.webContents, url);
 
       if (isInAppUrl(url)) {
@@ -787,10 +774,6 @@ const createWindow = async () => {
   });
 
   bindNavControls(mainWindow);
-
-  if (process.env.ELECTRON_DEBUG === '1') {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-  }
 
   mainWindow.webContents.once('did-finish-load', () => {
     void initializeCidService({ allowSwitchOpen: false });
