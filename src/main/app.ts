@@ -184,13 +184,13 @@ const safeLoad = async (win: BrowserWindow, url: string, timeoutMs = 10000) => {
     try {
       await win.loadURL(
         'data:text/html;charset=utf-8,' +
-          encodeURIComponent(`
+        encodeURIComponent(`
           <h2 style="font-family:sans-serif">네트워크/로드 오류</h2>
           <p>페이지를 불러오지 못했습니다.</p>
           <pre style="white-space:pre-wrap">${String(e)}</pre>
         `)
       );
-    } catch {}
+    } catch { }
   } finally {
     if (timer) clearTimeout(timer);
     if (!win.isVisible()) win.show();
@@ -214,7 +214,7 @@ const buildAppHosts = (targetUrl: string): InAppRules => {
         suffix.push('.bunyangin.com');
       }
     }
-  } catch {}
+  } catch { }
 
   // 개발 환경용
   exact.add('localhost');
@@ -226,7 +226,6 @@ const buildAppHosts = (targetUrl: string): InAppRules => {
   exact.add('kakaocdn.net');
   suffix.push('.kakaocdn.net');
 
-  // ★ Kakao-DAUM SSO 체인 추가
   exact.add('daum.net');
   suffix.push('.daum.net');
   exact.add('daumcdn.net');
@@ -266,13 +265,13 @@ const extractHttpFallback = (raw: string): string | null => {
   try {
     const u = new URL(raw);
     if (/^https?:$/i.test(u.protocol)) return u.toString();
-  } catch {}
+  } catch { }
   const m = raw.match(/browser_fallback_url=([^;#]+)/i);
   if (m?.[1]) {
     try {
       const decoded = decodeURIComponent(m[1]);
       if (/^https?:\/\//i.test(decoded)) return decoded;
-    } catch {}
+    } catch { }
   }
   const m2 = raw.match(/https?:\/\/[^\s'"]+/i);
   if (m2?.[0]) return m2[0];
@@ -281,7 +280,7 @@ const extractHttpFallback = (raw: string): string | null => {
 
 const navigateToCallbackThenCleanup = (callbackUrl: string) => {
   try {
-    mainWindow?.loadURL(callbackUrl).catch(() => {});
+    mainWindow?.loadURL(callbackUrl).catch(() => { });
     logger.info('[auth] navigate to callback:', callbackUrl);
 
     setTimeout(() => {
@@ -289,7 +288,7 @@ const navigateToCallbackThenCleanup = (callbackUrl: string) => {
       if (isKakaoCallbackUrl(cur)) {
         mainWindow?.webContents
           .executeJavaScript(`history.replaceState(null, "", "/#/");`)
-          .catch(() => {});
+          .catch(() => { });
         logger.info('[auth] cleanup URL -> "#/"');
       }
     }, 1500);
@@ -310,6 +309,13 @@ const maybeCloseAuthPopup = (wc: Electron.WebContents, url: string) => {
   if (isPopup) bw!.close();
 
   navigateToCallbackThenCleanup(url);
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.focus();
+    mainWindow.show();
+    mainWindow.setAlwaysOnTop(true);
+    mainWindow.setAlwaysOnTop(false);
+  }
 };
 /**!SECTION - Helpers */
 
@@ -596,7 +602,7 @@ const createWindow = async () => {
     if (fb && isInAppUrl(fb)) {
       e.preventDefault();
       logger.info('[navigate fallback→in-app]', fb);
-      mainWindow?.loadURL(fb).catch(() => {});
+      mainWindow?.loadURL(fb).catch(() => { });
       return;
     }
 
@@ -629,7 +635,7 @@ const createWindow = async () => {
     if (fb && isInAppUrl(fb)) {
       e.preventDefault();
       logger.info('[redirect fallback→in-app]', fb);
-      mainWindow?.loadURL(fb).catch(() => {});
+      mainWindow?.loadURL(fb).catch(() => { });
       return;
     }
 
@@ -694,7 +700,7 @@ const createWindow = async () => {
       if (fb && isInAppUrl(fb)) {
         e.preventDefault();
         logger.info('[popup navigate fallback→in-app]', fb);
-        child.loadURL(fb).catch(() => {});
+        child.loadURL(fb).catch(() => { });
         return;
       }
       openExternally(url, e);
@@ -719,7 +725,7 @@ const createWindow = async () => {
         e.preventDefault();
         logger.info('[popup redirect fallback→in-app]', fb);
         // 팝업 자신을 fallback으로 이동
-        child.loadURL(fb).catch(() => {});
+        child.loadURL(fb).catch(() => { });
         return;
       }
 
@@ -748,14 +754,14 @@ const createWindow = async () => {
     try {
       await mainWindow?.loadURL(
         'data:text/html;charset=utf-8,' +
-          encodeURIComponent(`
+        encodeURIComponent(`
             <h1>네트워크 오류</h1>
             <p>${desc} (code: ${code})</p>
             <p>URL: ${url}</p>
             <p>인터넷 연결 또는 방화벽/프록시를 확인하세요.</p>
           `)
       );
-    } catch {}
+    } catch { }
     if (!mainWindow?.isVisible()) mainWindow?.show();
   });
 
@@ -782,6 +788,9 @@ const createWindow = async () => {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  mainWindow.on('focus', () => logger.info('[INFO] mainWindow focussed'));
+  mainWindow.on('blur', () => logger.info('[INFO] mainWindow blurred'));
 };
 /**!SECTION - Window (Main) */
 
@@ -814,13 +823,13 @@ export const createApp = async () => {
       });
       await fallback.loadURL(
         'data:text/html;charset=utf-8,' +
-          encodeURIComponent(`
+        encodeURIComponent(`
             <h2 style="font-family:sans-serif">앱 시작 실패</h2>
             <pre style="white-space:pre-wrap">${String(e?.message || e)}</pre>
             <p>로그 폴더: ${app.getPath('logs')}</p>
           `)
       );
-    } catch {}
+    } catch { }
   }
 };
 /**!SECTION - App Entry */

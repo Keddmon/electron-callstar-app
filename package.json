@@ -1,6 +1,6 @@
 {
   "name": "electron-callstar-app",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "main": "dist/main/main.js",
   "private": true,
   "scripts": {
@@ -20,8 +20,8 @@
     "build:main": "tsc -p tsconfig.json"
   },
   "build": {
-    "appId": "com.bunyangin.local.app",
-    "productName": "Bunyangin Local App",
+    "appId": "com.bunyangin.app",
+    "productName": "Bunyangin App",
     "asarUnpack": [
       "**/*.node",
       "**/node_modules/cap/**",
