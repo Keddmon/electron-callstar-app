@@ -138,57 +138,6 @@ function buildApi() {
   return api;
 }
 
-// const api = {
-//   cid: {
-//     open: (args?: { path: string }) => ipcRenderer.invoke(IPC.CID.OPEN, args),
-//     close: () => ipcRenderer.invoke(IPC.CID.CLOSE),
-//     getStatus: () => ipcRenderer.invoke(IPC.CID.STATUS),
-//     switchCid: (args: {
-//       cidType: string;
-//       callstarPort?: string;
-//       captureDevice?: string;
-//     }) => ipcRenderer.invoke(IPC.CID.SWITCH_CID, args),
-//     listPorts: () => ipcRenderer.invoke(IPC.CID.LIST_PORTS),
-//     listSwitches: () => ipcRenderer.invoke(IPC.CID.LIST_SWITCHES),
-//     onEvent: (callback: (evt: CidEvent) => void) => {
-//       const handler = (_e: IpcRendererEvent, evt: CidEvent) => callback(evt);
-//       ipcRenderer.on(IPC.CID.EVENT, handler);
-//       return () => ipcRenderer.removeListener(IPC.CID.EVENT, handler);
-//     },
-//     onStatus: (callback: (status: CidStatus) => void) => {
-//       const handler = (_e: IpcRendererEvent, status: CidStatus) =>
-//         callback(status);
-//       ipcRenderer.on(IPC.CID.STATUS, handler);
-//       return () => ipcRenderer.removeListener(IPC.CID.STATUS, handler);
-//     },
-//     // TEST (추후 삭제 요망)
-//     incoming: (payload: string) =>
-//       ipcRenderer.invoke(IPC.CID.INCOMING, { payload }),
-//   },
-//   settings: {
-//     get: (): Promise<Settings> => ipcRenderer.invoke(IPC.SETTINGS.GET),
-//     patch: (partialSettings: Partial<Settings>) =>
-//       ipcRenderer.invoke(IPC.SETTINGS.PATCH, partialSettings),
-//   },
-//   nav: {
-//     onState: (
-//       callback: (state: {
-//         canGoBack: boolean;
-//         canGoForward: boolean;
-//         url: string;
-//       }) => void
-//     ) => {
-//       const handler = (_e: IpcRendererEvent, state: any) => callback(state);
-//       ipcRenderer.on(IPC.NAV.STATE, handler);
-//       return () => ipcRenderer.removeListener(IPC.NAV.STATE, handler);
-//     },
-//   },
-//   __meta__: {
-//     electron: true,
-//     versions: process.versions,
-//   },
-// };
-
 try {
   // @ts-ignore
   if (!(window as any).__BYNATIVE__) {

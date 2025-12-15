@@ -255,11 +255,4 @@ export class CallstarCidAdapter extends EventEmitter implements CidAdapter {
       this.emit('cid', cidData);
     }
   }
-
-  /** TEST */
-  incoming(payload: string) {
-    const packet = makePacket(OPCODE.INCOMING, payload);
-    const chunk = Buffer.from(packet, 'utf-8');
-    this.onData(chunk);
-  }
 }

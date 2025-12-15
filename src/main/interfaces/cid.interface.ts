@@ -10,7 +10,4 @@ export interface CidAdapter extends EventEmitter {
   open(opts?: any): Promise<void> | void;
   close(): void;
   getStatus(): CidStatus;
-
-  // TEST
-  incoming(payload: string): void;
 }

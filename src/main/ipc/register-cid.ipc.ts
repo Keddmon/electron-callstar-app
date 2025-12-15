@@ -211,17 +211,6 @@ const registerCidIpc = (
     }
   });
 
-  /** TEST */
-  ipcm.handle(IPC.CID.INCOMING, async (_e, payload: string): Promise<any> => {
-    const adapter = getAdapter();
-    try {
-      const result = await adapter?.incoming(payload);
-      return { data: result, error: null };
-    } catch (e: any) {
-      return { data: null, error: e.message ?? String(e) };
-    }
-  });
-
   const cleanup = () => {
     try {
       attachAdapter(null);
