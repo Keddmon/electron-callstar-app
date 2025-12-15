@@ -25,6 +25,7 @@ if (!gotTheLock) {
   // });
   app.on('second-instance', async () => {
     let win = BrowserWindow.getAllWindows()[0];
+    
     if (!win) {
       try {
         await createApp();
